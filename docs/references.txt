@@ -1,0 +1,6 @@
+
+
+[1] Conway, J.H., Sloane, N.J.A 1988 Sphere Packings, Lattices and Groups ISBN 0-387-69917-X
+    * used for point quantization
+    
+    
