@@ -5,6 +5,8 @@ from __future__ import print_function, division
 
 # 3rd Party
 import numpy as np
+#vector quantization
+import scipy.cluster.vq as vq
 
 # Internal
 
@@ -14,28 +16,30 @@ __all__ = ["PointSet","Lattice"]
 
 class PointSet (object):
     
-    def __init__ (self,lattice_points):
+    def __init__ (self, point_coordinates, k=None):
         """
         Paramters
         ---------
-        lattice_points : ndarray, size=(U,V) 
-            where U is the number of points in V dimensional space
+        point_coordinates : ndarray, size=(n_points , n_dims) 
         
         """
-        self.lattice_points = np.asarray(lattice_points)
+        self.points = np.asarray(point_coordinates)
     
     @property
     def ndim (self):
-        return self.lattice_points.ndim
-        
-    def quantize (self,points):
+        return self.points.shape[1]
+    
+    def coordinates(self, point_index):
+        return self.points[point_index]
+    
+    def quantize (self,points, return_distortion=False):
         """
         Takes points and returns point set representation
         
         Parameters
         ----------
-        points : ndarray, size=(M,N)
-            array of points to quantize M long by N dimensions
+        points : ndarray, size=(n_points , n_dims)
+            array of points to quantize
             
         Returns
         -------
@@ -43,19 +47,23 @@ class PointSet (object):
             a list of representations for each point in pts
             
         """
-        pts = np.asarray(points)    
+        vqres = vq.vq(np.asarray(points), self.points)
+        if return_distortion:
+            return vqres
+        else:
+            return vqres[0]
     
     def cannonize (self,reps):
         """
         Takes representations and return unique representation for each point
         
         """
-        pass
+        return np.asarray(reps, dtype=int)
 
 class Lattice (PointSet):
     
-    def __init__ (self,lattice_points):
-        PointSet.__init__(self,lattice_points)
+    def __init__ (self, packing_radius, offset=None, scale=None, family="A"):
+        pass
 
     def quantize (self,points):
         # TODO: following Algorithim 3 on p445
