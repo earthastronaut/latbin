@@ -2,6 +2,7 @@
 
 # Standard Library
 from __future__ import print_function, division
+from copy import deepcopy
 
 # 3rd Party
 import numpy as np
@@ -10,13 +11,94 @@ import scipy.cluster.vq as vq
 
 # Internal
 
-__all__ = ["PointSet","Lattice"]
+__all__ = ["PointInformation","PointSet"]
 
 # ########################################################################### #
 
+class PointInformation (dict):
+    """
+    TODO: finish doc string
+    """
+    
+    def __init__ (self,*args,**kwargs):
+        super(PointInformation,self).__init__(*args,**kwargs)
+        
+    def _type_check_other (self,other):
+        if not isinstance(other,dict):
+            raise TypeError("other must be a subclass of dict")
+    
+    def __add__ (self,other):
+        return self.add(other,fill=0)
+            
+#     def __iadd__ (self,other):
+#         self._type_check_other(other)
+#         for key in other:
+#             if self.has_key(key):
+#                 continue
+#             self[key] = other[key]
+#         return self    
+      
+    def __setitem__ (self,key,value):
+        dict.__setitem__(self,key,value)
+      
+    def _operation (self,other,operator,fill):
+        pass
+     
+    def add (self,other,fill=0):
+        self._type_check_other(other)
+        key_set = set(self.keys())
+        for key in other.keys():
+            key_set.add(key)
+        pi = PointInformation()
+        for key in key_set:
+            first = self.get(key, fill)
+            second = other.get(key, fill)
+            pi[key] = first + second
+        return pi
+    
+    def sub (self,other,fill=0):
+        self._type_check_other(other)
+        key_set = set(self.keys())
+        for key in other.keys():
+            key_set.add(key)
+        pi = PointInformation()
+        for key in key_set:
+            first = self.get(key, fill)
+            second = other.get(key, fill)
+            pi[key] = first - second
+        return pi
+        pass
+    
+    def mul (self,other,fill=1):
+        self._type_check_other(other)
+        key_set = set(self.keys())
+        for key in other.keys():
+            key_set.add(key)
+        pi = PointInformation()
+        for key in key_set:
+            first = self.get(key, fill)
+            second = other.get(key, fill)
+            pi[key] = first * second
+        return pi
+     
+    def div (self,other,fill=np.nan):
+        self._type_check_other(other)
+        key_set = set(self.keys())
+        for key in other.keys():
+            key_set.add(key)
+        pi = PointInformation()
+        for key in key_set:
+            first = self.get(key, fill)
+            second = other.get(key, fill)
+            pi[key] = first / second
+        return pi
+    
+    def copy (self):
+        return deepcopy(self)
+    
 class PointSet (object):
     
-    def __init__ (self, point_coordinates, k=None):
+    def __init__ (self, point_coordinates):
         """
         Paramters
         ---------
@@ -24,10 +106,6 @@ class PointSet (object):
         
         """
         self.points = np.asarray(point_coordinates)
-    
-    @property
-    def ndim (self):
-        return self.points.shape[1]
     
     def coordinates(self, point_index):
         return self.points[point_index]
@@ -47,30 +125,12 @@ class PointSet (object):
             a list of representations for each point in pts
             
         """
-        vqres = vq.vq(np.asarray(points), self.points)
+        vqres = vq.vq(np.asarray(points), self.points)        
         if return_distortion:
-            return vqres
+            return vqres[0],vqres[1]
         else:
-            return vqres[0]
-    
-    def cannonize (self,reps):
-        """
-        Takes representations and return unique representation for each point
+            return vqres[0],None
         
-        """
-        return np.asarray(reps, dtype=int)
-
-class Lattice (PointSet):
-    
-    def __init__ (self, packing_radius, offset=None, scale=None, family="A"):
-        pass
-
-    def quantize (self,points):
-        # TODO: following Algorithim 3 on p445
-        pts = np.asarray(points)
-        s = np.sum(pts,axis=1)
-        pts -= s/(self.ndim+1)
-        deficiency = np.sum(pts,axis=0)
         
-    quantize.__doc__ = PointSet.quantize.__doc__
+        
     
