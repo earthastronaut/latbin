@@ -7,10 +7,8 @@ import unittest
 import numpy as np
 
 # Internal
-import latbin
 from latbin import PointInformation
-from latbin import ZLattice, Lattice, generate_lattice
-
+from latbin import ZLattice,ALattice, Lattice, generate_lattice
 
 # ########################################################################### #
 
@@ -49,18 +47,29 @@ class TestPointInformation (unittest.TestCase):
             msg = " __add__  failed for example {}".format(i)
             self.assertEqual(dunder_add_result, true_result , msg)
         
-        # TODO: finish the tests
+    def test_operation(self):
+        PI = PointInformation
+        rpairs = [((self.pi3, self.pi4), PI(a=3.2,b=7.3,c=1.2,d=-2.3)),
+                  ((self.pi1, self.pi2), PI(a=1,b=5,c='hello world',e=[1,2,3,4,5,6])),
+                  ]
         
-    def test_sub(self):
-        pass
+        for i,(operands, true_result) in enumerate(rpairs):
+            op1, op2 = operands
+            add_result = op1.operation(op2,lambda x,y: x+y,fill=0)
+            msg = " .operation failed for example {}".format(i)
+            self.assertEqual(add_result, true_result , msg)
 
-    def test_mul(self):
-        pass
 
-    def test_div(self):
-        pass
+            op1.inplace_operation(op2,lambda x,y: x+y,fill=0)
+            msg = " .inplace_operation failed for example {}".format(i)
+            self.assertEqual(op1, true_result , msg)
     
-class TestCore (unittest.TestCase):
+            try:
+                op1.inplace_operation(op2,lambda x: x,fill=0)
+            except Exception as e:
+                self.assert_(isinstance(e,TypeError), "Takes operators that have args=1")    
+
+class TestLattice (unittest.TestCase):
     
     
     def setUp (self):
@@ -78,8 +87,8 @@ class TestCore (unittest.TestCase):
         
         unittest.TestCase.setUp(self)
         
-        self.z1 = ZLattice(1, ndim=1, origin=(-1,), scale=2.1)
-        self.z2 = ZLattice(1, ndim=2, origin=(-1, 0), scale=(2.1,2))
+        self.z1 = ZLattice(ndim=1, origin=(-1,), scale=2.1, packing_radius=1.0)
+        self.z2 = ZLattice(ndim=2, origin=(-1, 0), scale=(2.1,2),  packing_radius=1.0)
         # TODO: write test for ndim=5
     
     def test_z1_coords(self):
@@ -105,27 +114,32 @@ class TestCore (unittest.TestCase):
             self.assertTrue(np.all(lc==output_lc), msg="bad {}".format(i))
        
     def test_z1_quantize (self):
-        
         pass
-        
-        
             
-    def test_2d (self):
-        
-        # set up the point set latbinner 
-        
-        # bin two data sets
-            
-        # subtract the two data sets
-        
-        # compare to correct result
-
-        pass
-    
     def test_quantize(self):
         pass
+      
+    def test_generate_lattice (self):
+        #         rkws = [dict(ndim=1),
+        #                 dict(ndim=1)]
+        #         
+        #         rpairs = [(ZLattice(**rkws[0]),generate_lattice(family='z',**rkws[0])),
+        #                   (ALattice(**rkws[1]),generate_lattice(family='a',**rkws[1])),
+        #                   ]
+        #                   
+        #         for i,(l1,l2) in enumerate(rpairs):
+        #             msg = "generate lattice failed to generate on {}".format(i)
+        #             self.assert_(l1==l2,msg)
+        pass
         
-
+    def test_ALattice (self):
+        
+        data = [3.2,5,-8.2]
+        hexlattice = ALattice(ndim=2,packing_radius=1)
+        pass
+        
+        
+    
 
 # ########################################################################### #
 

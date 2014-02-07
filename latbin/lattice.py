@@ -11,14 +11,18 @@ import numpy as np
 # Internal
 from .point_sets import PointSet, PointInformation
 
-__all__ = ["Lattice","ZLattice","generate_lattice"]
+__all__ = ["Lattice","ZLattice",#"DLattice","ALattice","ELattice",
+           "generate_lattice"]
 
 # ########################################################################### #
 
 class Lattice (PointSet):
+    """
+    The basic Lattice class. To have a specific lattice please use the subclass
     
-    def __init__(self, packing_radius, ndim, origin, scale, rotation):
-        self.packing_radius = float(packing_radius)
+    """
+    def __init__(self, ndim, origin, scale, rotation, packing_radius):
+        
         
         if ndim <= 0:
             raise ValueError("ndim must be > 0")
@@ -38,6 +42,9 @@ class Lattice (PointSet):
             self.scale = np.ones(ndim,dtype=float)*scale
         if len(self.scale) != ndim or self.scale.ndim != 1:
             raise ValueError("scale must be a float or a float vector of length={}".format(ndim))
+
+        if packing_radius != 1.0:
+            self.scale /= packing_radius 
 
         # TODO: finish rotation
         if rotation is None:
@@ -84,11 +91,11 @@ class Lattice (PointSet):
             lattice_coords = (data_coords-self.origin)/self.scale
         
         return lattice_coords        
-        
+   
 class ZLattice (Lattice):
     
-    def __init__ (self, packing_radius, ndim, origin=None, scale=None, rotation=None):
-        Lattice.__init__(self, packing_radius, ndim, origin, scale, rotation)
+    def __init__ (self, ndim, origin=None, scale=None, rotation=None, packing_radius=1.0):
+        Lattice.__init__(self, ndim, origin, scale, rotation, packing_radius)
 
     def coordinates(self,point_index):
         return self.to_data_coords(point_index)
@@ -106,6 +113,26 @@ class ZLattice (Lattice):
         """
         return Lattice.quantize(self, points, return_distortion)
 
+class DLattice (Lattice):
+
+    def __init__ (self, ndim, origin=None, scale=None, rotation=None, packing_radius=1.0):
+        Lattice.__init__(self, ndim, origin, scale, rotation, packing_radius)
+       
+class ALattice (Lattice):
+
+    def __init__ (self, ndim, origin=None, scale=None, rotation=None, packing_radius=1.0):
+        Lattice.__init__(self, ndim, origin, scale, rotation, packing_radius)
+
+class ELattice (Lattice):
+
+    def __init__ (self, ndim, origin=None, scale=None, rotation=None, packing_radius=1.0):
+        Lattice.__init__(self, ndim, origin, scale, rotation, packing_radius)
+       
+families = {'z':ZLattice,
+            }
+# TODO: add class to families when known
+
+# ########################################################################### #
 
 def histogram(points, bins):
     """histogram a set of points onto a pointset
@@ -118,10 +145,46 @@ def histogram(points, bins):
         pi[key] = points[i]
     return pi
 
-  
-def generate_lattice (packing_radius, ndim, origin=None, scale=None, family="z"):
+ 
+# ########################################################################### #
+ 
+def generate_lattice (ndim, origin=None, scale=None, family="z", packing_radius=1.0):
+    rotation = None
     family = family.lower()
-    if family == 'z':
-        return ZLattice(packing_radius, ndim, origin, scale)
-    # TODO: add for all families
-    pass
+    if not families.has_key(family):
+        raise ValueError("family must be in ({}), see NOTE1 in doc string".format(", ".join(families.keys())))
+    latclass = families[family] 
+    return latclass(ndim, origin, scale, rotation, packing_radius) #TODO: this only works if all the arguments for every lattice class is the same. is it?
+
+generate_lattice.__doc__ =     """
+    Function for getting a lattice object based on input parameters
+    
+    Parameters
+    ----------
+    ndim : integer
+        Number of dimensions
+    origin : array-like of floats, shape=(ndim,)
+        1D array-like object which gives the origin of lattice in ndim
+    scale : float or array-like of floats, shape=(ndim,)
+        If a float then cast to an 1D array of length ndim. The 1D array is used to scale the data space
+    family : string in ({0})
+        Gives the family of lattices to generate. See NOTES1.
+    packing_radius : float (optional)
+        This is used to modify the scale. scale \= packing_radius
+        
+    Returns
+    -------
+    Lattice : {1}
+        Depending on family, this returns a lattice object
+    
+    
+    Notes
+    -----
+    __1)__ Families of lattices are defined TODO: finish
+        * ALattice : ndim=2 is a hexbin lattice
+    
+    """.format(", ".join(families.keys()),
+               ", ".join([val.__name__ for val in families.values()]))
+
+    
+    
