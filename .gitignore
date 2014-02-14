@@ -1,0 +1,6 @@
+# python #
+*.py[c,o]
+
+# eclipse #
+.pydevproject
+.project
