@@ -148,6 +148,46 @@ class ALattice (Lattice):
 
     def __init__ (self, ndim, origin=None, scale=None, rotation=None):
         Lattice.__init__(self, ndim, origin, scale, rotation)
+    
+    def data_to_lattice_space(self, points):
+        points = super(ALattice, self).data_to_lattice_space(points)
+        npoints, ndims = points.shape
+        lat_points = np.hstack(points, np.zeros((npoints, 1)))
+        psum = np.sum(points, axis=-1)/(ndims+1)
+        lat_points -= psum.reshape((-1, 1))
+        return lat_points
+    
+    def lattice_to_data_space(self, points):
+        neg_psum = points[:, -1]
+        unsummed = points[:, :-1] - neg_psum()
+        return super(ALattice, self).lattice_to_data_space(unsummed)
+    
+    def quantize(self, points):
+        lspace_pts = self.data_to_lattice_space(points)
+        lspace_dim = lspace_pts.shape[-1]
+        rounded_pts = np.array(np.around(lspace_pts), dtype=int)
+        deficiency = np.sum(rounded_pts, axis=-1)
+        cdiff = lspace_pts - rounded_pts
+        permutations = np.empty(lspace_pts.shape)
+        for i in range(len(points)):
+            sorted_cdiff, permutations = zip(*sorted((cdiff, range(lspace_dim))))
+        quantized_repr = rounded_pts
+        for i in range(len(quantized_repr)):
+            if deficiency[i] == 0:
+                continue
+            elif deficiency[i] > 0:
+                for j in range(deficiency):
+                    perm_idx = permutations[i, j]
+                    quantized_repr[i, perm_idx] -= 1
+            elif deficiency[i] < 0:
+                for j in range(deficiency):
+                    perm_idx = permutations[i, -1-j]
+                    quantized_repr[i, perm_idx] += 1
+        return quantized_repr
+                
+    
+    def representation_to_centers(self, representations):
+        return self.lattice_to_data_space(representations)
 
 class ELattice (Lattice):
 
