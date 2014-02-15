@@ -8,7 +8,7 @@ import numpy as np
 
 # Internal
 from latbin import PointInformation
-from latbin import ZLattice, DLattice, Lattice, generate_lattice
+from latbin import ZLattice, DLattice, ALattice, Lattice, generate_lattice
 
 # ########################################################################### #
 
@@ -72,14 +72,14 @@ class TestPointInformation (unittest.TestCase):
 class TestLattice (unittest.TestCase):
     
     def setUp (self):
-        self.random_2d_pts = 20.0*(np.random.random((100, 1))-0.5)
-        self.random_2d_pts = 20.0*(np.random.random((100, 2))-0.5)
-        self.random_3d_pts = 20.0*(np.random.random((100, 3))-0.5)
-        self.random_4d_pts = 20.0*(np.random.random((100, 4))-0.5)
-    
+        np.random.seed(89)
+        self.rpoints = {}
+        for dim in [2, 3, 4]:
+            self.rpoints[dim] = 5.0*(np.random.random((1000, dim))-0.5)
+        
         #parameters = []
         #self.point_set = latbin.PointSet()
-    
+        
         self.result2 = None
         
         self.pad = None
@@ -157,9 +157,21 @@ class TestLattice (unittest.TestCase):
             self.assert_(is_equal,msg)
             
             
-        
-        
-        
+    def test_quantize(self):
+        dimensions = [2, 3, 4]
+        lattices = [ALattice, DLattice, ZLattice]
+        for dim in dimensions:
+            for lat_generator in lattices:
+                lat = lat_generator(dim)
+                rpoints = self.rpoints[dim]
+                quant = lat.quantize(self.rpoints[dim])
+                dspace_centers = lat.representation_to_centers(quant)
+                import matplotlib.pyplot as plt
+                for i in range(len(quant)):
+                    plt.plot([rpoints[i, 0], dspace_centers[i, 0]], [rpoints[i, 1], dspace_centers[i, 1]])
+                plt.show()
+                import pdb; pdb.set_trace()
+                
         
         
     

@@ -11,7 +11,7 @@ import numpy as np
 # Internal
 from .point_sets import PointSet, PointInformation
 
-__all__ = ["Lattice","ZLattice","DLattice",#"ALattice","ELattice",
+__all__ = ["Lattice","ZLattice","DLattice","ALattice", "ELattice",
            "generate_lattice"]
 
 # ########################################################################### #
@@ -159,28 +159,31 @@ class ALattice (Lattice):
     
     def lattice_to_data_space(self, points):
         neg_psum = points[:, -1]
-        unsummed = points[:, :-1] - neg_psum()
+        unsummed = points[:, :-1] - neg_psum.reshape((-1, 1))
         return super(ALattice, self).lattice_to_data_space(unsummed)
     
     def quantize(self, points):
+        # take points to lattice space
         lspace_pts = self.data_to_lattice_space(points)
         lspace_dim = lspace_pts.shape[-1]
-        rounded_pts = np.array(np.around(lspace_pts), dtype=int)
+        # round to nearest integer
+        rounded_pts = np.around(lspace_pts).astype(int)
+        # calculate the deficiency in the rounding
         deficiency = np.sum(rounded_pts, axis=-1)
         cdiff = lspace_pts - rounded_pts
-        permutations = np.empty(lspace_pts.shape)
-        for i in range(len(points)):
-            sorted_cdiff, permutations = zip(*sorted((cdiff, range(lspace_dim))))
+        permutations = np.argsort(cdiff,axis=-1)
         quantized_repr = rounded_pts
-        for i in range(len(quantized_repr)):
-            if deficiency[i] == 0:
+
+        for i in xrange(len(quantized_repr)):
+            cdeff = deficiency[i]
+            if cdeff == 0:
                 continue
-            elif deficiency[i] > 0:
-                for j in range(deficiency):
+            elif cdeff > 0:
+                for j in xrange(cdeff):
                     perm_idx = permutations[i, j]
                     quantized_repr[i, perm_idx] -= 1
-            elif deficiency[i] < 0:
-                for j in range(deficiency):
+            elif cdeff < 0:
+                for j in xrange(cdeff):
                     perm_idx = permutations[i, -1-j]
                     quantized_repr[i, perm_idx] += 1
         return quantized_repr
@@ -196,6 +199,7 @@ class ELattice (Lattice):
 
 families = {'z':ZLattice,
             'd':DLattice,
+            'a':ALattice,
             }
 # TODO: add class to families when known
 
