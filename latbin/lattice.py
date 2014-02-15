@@ -11,7 +11,7 @@ import numpy as np
 # Internal
 from .point_sets import PointSet, PointInformation
 
-__all__ = ["Lattice","ZLattice",#"DLattice","ALattice","ELattice",
+__all__ = ["Lattice","ZLattice","DLattice",#"ALattice","ELattice",
            "generate_lattice"]
 
 # ########################################################################### #
@@ -46,7 +46,7 @@ class Lattice (PointSet):
             rotation = np.eye(ndim) 
         self.rotation = np.asarray(rotation)
     
-    def lattice_to_data_space(self, lattice_coords):
+    def lattice_to_data_space (self, lattice_coords):
         """
         transforms from the internal lattice coordinates to the original 
         data coordinates.
@@ -195,7 +195,7 @@ class ELattice (Lattice):
         Lattice.__init__(self, ndim, origin, scale, rotation)
 
 families = {'z':ZLattice,
-            'd':DLattice
+            'd':DLattice,
             }
 # TODO: add class to families when known
 
@@ -220,11 +220,12 @@ def histogram(points, bins):
  
 def generate_lattice (ndim, origin=None, scale=None, family="z", packing_radius=1.0):
     rotation = None
+    # TODO: fix packing radius to work 
     family = family.lower()
     if not families.has_key(family):
         raise ValueError("family must be in ({}), see NOTE1 in doc string".format(", ".join(families.keys())))
     latclass = families[family] 
-    return latclass(ndim, origin, scale, rotation, packing_radius) #TODO: this only works if all the arguments for every lattice class is the same. is it?
+    return latclass(ndim, origin, scale, rotation) #TODO: this only works if all the arguments for every lattice class is the same. is it?
 
 generate_lattice.__doc__ =     """
     Function for getting a lattice object based on input parameters
