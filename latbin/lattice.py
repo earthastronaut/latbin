@@ -152,7 +152,7 @@ class ALattice (Lattice):
     def data_to_lattice_space(self, points):
         points = super(ALattice, self).data_to_lattice_space(points)
         npoints, ndims = points.shape
-        lat_points = np.hstack(points, np.zeros((npoints, 1)))
+        lat_points = np.hstack((points, np.zeros((npoints, 1))))
         psum = np.sum(points, axis=-1)/(ndims+1)
         lat_points -= psum.reshape((-1, 1))
         return lat_points
