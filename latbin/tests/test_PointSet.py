@@ -8,7 +8,7 @@ import numpy as np
 
 # Internal
 from latbin import PointInformation
-from latbin import ZLattice,ALattice, Lattice, generate_lattice
+from latbin import ZLattice, DLattice, Lattice, generate_lattice
 
 # ########################################################################### #
 
@@ -71,7 +71,6 @@ class TestPointInformation (unittest.TestCase):
 
 class TestLattice (unittest.TestCase):
     
-    
     def setUp (self):
         self.random_2d_pts = 20.0*(np.random.random((100, 1))-0.5)
         self.random_2d_pts = 20.0*(np.random.random((100, 2))-0.5)
@@ -87,8 +86,8 @@ class TestLattice (unittest.TestCase):
         
         unittest.TestCase.setUp(self)
         
-        self.z1 = ZLattice(ndim=1, origin=(-1,), scale=2.1, packing_radius=1.0)
-        self.z2 = ZLattice(ndim=2, origin=(-1, 0), scale=(2.1,2),  packing_radius=1.0)
+        self.z1 = ZLattice(ndim=1, origin=(-1,), scale=2.1)
+        self.z2 = ZLattice(ndim=2, origin=(-1, 0), scale=(2.1,2))
         # TODO: write test for ndim=5
     
     def test_z1_coords(self):
@@ -96,10 +95,10 @@ class TestLattice (unittest.TestCase):
         rpairs = [([[0],[1]],  [[-1], [1.1]])]
         
         for i, (lc, dc) in enumerate(rpairs):
-            output_dc = self.z1.to_data_coords(lc)
+            output_dc = self.z1.lattice_to_data_space(lc)
             self.assertTrue(np.all(dc==output_dc), msg="bad {}".format(i))
             
-            output_lc = self.z1.to_lattice_coords(dc)
+            output_lc = self.z1.data_to_lattice_space(dc)
             self.assertTrue(np.all(lc==output_lc), msg="bad {}".format(i))
 
     def test_z2_coords(self):
@@ -107,10 +106,10 @@ class TestLattice (unittest.TestCase):
         rpairs = [([[0, 0],[1, 3.5]],  [[-1, 0], [1.1, 7.0]])]
         
         for i, (lc, dc) in enumerate(rpairs):
-            output_dc = self.z2.to_data_coords(lc)
+            output_dc = self.z2.lattice_to_data_space(lc)
             self.assertTrue(np.all(dc==output_dc), msg="bad {}".format(i))
             
-            output_lc = self.z2.to_lattice_coords(dc)
+            output_lc = self.z2.data_to_lattice_space(dc)
             self.assertTrue(np.all(lc==output_lc), msg="bad {}".format(i))
        
     def test_z1_quantize (self):
@@ -120,23 +119,47 @@ class TestLattice (unittest.TestCase):
         pass
       
     def test_generate_lattice (self):
-        #         rkws = [dict(ndim=1),
-        #                 dict(ndim=1)]
-        #         
-        #         rpairs = [(ZLattice(**rkws[0]),generate_lattice(family='z',**rkws[0])),
-        #                   (ALattice(**rkws[1]),generate_lattice(family='a',**rkws[1])),
-        #                   ]
-        #                   
-        #         for i,(l1,l2) in enumerate(rpairs):
-        #             msg = "generate lattice failed to generate on {}".format(i)
-        #             self.assert_(l1==l2,msg)
-        pass
+        rkws = [dict(ndim=1),
+                dict(ndim=1)]
+         
+        rpairs = [(ZLattice(**rkws[0]),generate_lattice(family='z',**rkws[0])),
+                  ]
+                   
+        for i,(l1,l2) in enumerate(rpairs):
+            msg = "generate lattice failed to generate on {}".format(i)
+            # self.assert_(l1==l2,msg)
+            pass
+            # TODO: implement test
         
-    def test_ALattice (self):
+    def test_lattice_data_space (self):
         
-        data = [3.2,5,-8.2]
-        hexlattice = ALattice(ndim=2,packing_radius=1)
-        pass
+        delta = 1e-14
+        ndim = 3
+        scale = np.random.normal(0,2,ndim)
+        scale[scale==0] = 1
+        origin = np.random.normal(0,2,ndim)
+        
+        kws = dict(scale=scale,origin=origin)
+        
+        test_lattices = [ZLattice(ndim,**kws),DLattice(ndim,**kws)]
+        
+        nrows = 10
+        data = np.random.normal(0,2,nrows*ndim).reshape((nrows,ndim))
+        
+        for lattice in test_lattices:
+            latcoords = lattice.data_to_lattice_space(data)
+            datcoords = lattice.lattice_to_data_space(latcoords)
+            
+            is_equal = np.all(np.abs(data-datcoords)<delta)
+            
+            msg = ("lattice {} did not correctly convert back"
+                   " to data coords").format(lattice,)
+            self.assert_(is_equal,msg)
+            
+            
+        
+        
+        
         
         
     
