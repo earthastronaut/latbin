@@ -75,7 +75,7 @@ class TestLattice (unittest.TestCase):
         np.random.seed(89)
         self.rpoints = {}
         for dim in [2, 3, 4]:
-            self.rpoints[dim] = 5.0*(np.random.random((1000, dim))-0.5)
+            self.rpoints[dim] = 5.0*(np.random.random((5000, dim))-0.5)
         
         #parameters = []
         #self.point_set = latbin.PointSet()
@@ -100,7 +100,7 @@ class TestLattice (unittest.TestCase):
             
             output_lc = self.z1.data_to_lattice_space(dc)
             self.assertTrue(np.all(lc==output_lc), msg="bad {}".format(i))
-
+    
     def test_z2_coords(self):
         #lattice coordinate, data coordinate pairs
         rpairs = [([[0, 0],[1, 3.5]],  [[-1, 0], [1.1, 7.0]])]
@@ -156,7 +156,7 @@ class TestLattice (unittest.TestCase):
                    " to data coords").format(lattice,)
             self.assert_(is_equal,msg)
             
-            
+    
     def test_quantize(self):
         dimensions = [2, 3, 4]
         lattices = [ALattice, DLattice, ZLattice]
@@ -168,7 +168,11 @@ class TestLattice (unittest.TestCase):
                 dspace_centers = lat.representation_to_centers(quant)
                 import matplotlib.pyplot as plt
                 for i in range(len(quant)):
-                    plt.plot([rpoints[i, 0], dspace_centers[i, 0]], [rpoints[i, 1], dspace_centers[i, 1]])
+                    plt.plot([rpoints[i, 0], dspace_centers[i, 0]], [rpoints[i, 1], dspace_centers[i, 1]], alpha=0.5)
+                q_error = dspace_centers - rpoints
+                #plt.hist(q_error[:, 0], 100)
+                #plt.hist(q_error[:, 1], 100)
+                #plt.scatter(q_error[:, 0], q_error[:, 1])
                 plt.show()
                 import pdb; pdb.set_trace()
                 

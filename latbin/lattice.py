@@ -148,20 +148,34 @@ class ALattice (Lattice):
 
     def __init__ (self, ndim, origin=None, scale=None, rotation=None):
         Lattice.__init__(self, ndim, origin, scale, rotation)
+        self._rot = np.zeros((ndim, ndim+1))
+        for dim_idx in range(ndim):
+            self._rot[dim_idx, :dim_idx+1] = 1
+            self._rot[dim_idx, dim_idx+1] = -(dim_idx + 1)
+        self._rot /= np.sqrt(np.sum(self._rot**2, axis=-1)).reshape((-1, 1))
+        #self._rot[:-1] = np.eye(ndim)
+        #self._rot[1:] -= np.eye(ndim)
+        #self._rot = self._rot.transpose()
+        self._rot_inv = np.linalg.pinv(self._rot)
     
     def data_to_lattice_space(self, points):
+        #import pdb; pdb.set_trace()
         points = super(ALattice, self).data_to_lattice_space(points)
-        npoints, ndims = points.shape
-        lat_points = np.hstack((points, np.zeros((npoints, 1))))
-        psum = np.sum(points, axis=-1)/(ndims+1)
-        lat_points -= psum.reshape((-1, 1))
-        return lat_points
+        #npoints, ndims = points.shape
+        #neg_psum = -np.sum(points, axis=-1)
+        #lat_points = np.hstack((points, neg_psum))#np.zeros((npoints, 1))))
+        #lat_points -= psum.reshape((-1, 1))
+        return np.dot(points, self._rot)
     
     def lattice_to_data_space(self, points):
-        neg_psum = points[:, -1]
-        unsummed = points[:, :-1] - neg_psum.reshape((-1, 1))
-        return super(ALattice, self).lattice_to_data_space(unsummed)
-    
+        #print("points", points)
+        #neg_psum = points[:, -1]
+        #ndim = points.shape[-1]
+        #unsummed = points[:, :-1] - neg_psum.reshape((-1, 1))
+        #import pdb; pdb.set_trace()
+        unrot = np.dot(points, self._rot_inv)
+        return super(ALattice, self).lattice_to_data_space(unrot)
+
     def quantize(self, points):
         # take points to lattice space
         lspace_pts = self.data_to_lattice_space(points)
@@ -173,7 +187,7 @@ class ALattice (Lattice):
         cdiff = lspace_pts - rounded_pts
         permutations = np.argsort(cdiff,axis=-1)
         quantized_repr = rounded_pts
-
+        
         for i in xrange(len(quantized_repr)):
             cdeff = deficiency[i]
             if cdeff == 0:
@@ -183,7 +197,7 @@ class ALattice (Lattice):
                     perm_idx = permutations[i, j]
                     quantized_repr[i, perm_idx] -= 1
             elif cdeff < 0:
-                for j in xrange(cdeff):
+                for j in xrange(-cdeff):
                     perm_idx = permutations[i, -1-j]
                     quantized_repr[i, perm_idx] += 1
         return quantized_repr
