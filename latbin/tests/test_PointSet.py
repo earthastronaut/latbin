@@ -111,13 +111,7 @@ class TestLattice (unittest.TestCase):
             
             output_lc = self.z2.data_to_lattice_space(dc)
             self.assertTrue(np.all(lc==output_lc), msg="bad {}".format(i))
-       
-    def test_z1_quantize (self):
-        pass
-            
-    def test_quantize(self):
-        pass
-      
+             
     def test_generate_lattice (self):
         rkws = [dict(ndim=1),
                 dict(ndim=1)]
