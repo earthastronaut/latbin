@@ -10,6 +10,7 @@
 *.o
 *.so
 *.py[cod]
+build
 
 # Installer logs #
 ##################
