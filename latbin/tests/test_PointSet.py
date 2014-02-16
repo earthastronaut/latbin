@@ -74,7 +74,8 @@ class TestLattice (unittest.TestCase):
     def setUp (self):
         np.random.seed(89)
         self.rpoints = {}
-        for dim in [2, 3, 4]:
+        self.dimensions = [2, 3, 4, 5]
+        for dim in self.dimensions:
             self.rpoints[dim] = 5.0*(np.random.random((5000, dim))-0.5)
         
         #parameters = []
@@ -152,23 +153,17 @@ class TestLattice (unittest.TestCase):
             
     
     def test_quantize(self):
-        dimensions = [2, 3, 4]
+        dimensions = self.dimensions
         lattices = [ALattice, DLattice, ZLattice]
         for dim in dimensions:
             for lat_generator in lattices:
                 lat = lat_generator(dim)
                 rpoints = self.rpoints[dim]
-                quant = lat.quantize(self.rpoints[dim])
+                quant = lat.quantize(rpoints)
                 dspace_centers = lat.representation_to_centers(quant)
-                import matplotlib.pyplot as plt
-                for i in range(len(quant)):
-                    plt.plot([rpoints[i, 0], dspace_centers[i, 0]], [rpoints[i, 1], dspace_centers[i, 1]], alpha=0.5)
                 q_error = dspace_centers - rpoints
-                #plt.hist(q_error[:, 0], 100)
-                #plt.hist(q_error[:, 1], 100)
-                #plt.scatter(q_error[:, 0], q_error[:, 1])
-                plt.show()
-                import pdb; pdb.set_trace()
+                msg="lattice quantization for %s in %d dimensions failed" % (lat, dim)
+                self.assertTrue(np.all(np.abs(q_error) < 1.0), msg) 
                 
         
         
