@@ -93,6 +93,17 @@ class Lattice (PointSet):
     def representation_to_centers(self, representations):
         raise Exception("Lattice isn't meant to be used this way see the generate_lattice helper function")
 
+    def __eq__ (self,other):
+        if not isinstance(other,type(self)):
+            return False
+        if other.ndim != self.ndim:
+            return False
+        if np.all(other.origin != self.origin):
+            return False
+        if np.all(other.scale != self.scale):
+            return False
+        return True
+        
 class ZLattice (Lattice):
     
     def __init__ (self, ndim, origin=None, scale=None, rotation=None):
