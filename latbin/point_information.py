@@ -6,22 +6,22 @@ from copy import deepcopy
 
 # 3rd Party
 import numpy as np
-#vector quantization
-import scipy.cluster.vq as vq
 
 # Internal
-
-__all__ = ["PointInformation","PointSet"]
+import latbin
 
 # ########################################################################### #
 
-class PointInformation (dict):
-    """
-    TODO: finish doc string
-    """
+__all__ = ["PointInformation"]
+
+# ########################################################################### #
+
+# TODO: Make this a Pandas.dataframe or Pandas.dataseries
+
+class InformationDict (dict):
     
     def __init__ (self,*args,**kwargs):
-        super(PointInformation,self).__init__(*args,**kwargs)
+        super(InformationDict,self).__init__(*args,**kwargs)
            
     def __setitem__ (self,key,value):
         dict.__setitem__(self,key,value)
@@ -48,8 +48,8 @@ class PointInformation (dict):
         
         
         """
-        point_info = PointInformation()
-        
+        point_info = InformationDict()
+
         if not isinstance(other,dict):
             for key in self.keys():
                 point_info[key] = operator(self[key],other)
@@ -136,42 +136,57 @@ class PointInformation (dict):
      
     def div (self,other,fill=np.nan):
         return self.operation(other, operator=lambda x,y:x/y, fill=fill)            
-        
-class PointSet (object):
+
+class PointInformation (InformationDict):
+    """Stores information for each point
     
-    def __init__ (self, point_coordinates):
-        """
-        Parameters
-        ---------
-        point_coordinates : ndarray, size=(n_points , n_dims) 
-        
-        """
-        self.points = np.asarray(point_coordinates)
+    Parameters
+    ----------
+    lattice : `latbin.Lattice`
+        The associated lattice object of the point information
+    *args, **kwargs : defaults for dict
     
-    def coordinates(self, point_index):
-        return self.points[point_index]
-    
-    def quantize (self,points, return_distortion=False):
+    """
+    def __init__ (self,lattice,*args,**kwargs):
+        if not isinstance(lattice, latbin.Lattice):
+            raise TypeError("lattice must be instance of `latbin.Lattice`")
+        self.lattice = lattice 
+        super(PointInformation, self).__init__(*args,**kwargs)
+       
+    def operation (self,other,operator,fill=np.nan):
         """
-        Takes points and returns point set representation
+        This performs an operation on the information
         
         Parameters
         ----------
-        points : ndarray, size=(n_points , n_dims)
-            array of points to quantize
-            
+        other : dict, PointInformation, any
+        operator : callable, takes two values
+        fill : any
+        
         Returns
         -------
-        reps : list, length M
-            a list of representations for each point in pts
-            
+        point_info : PointInformation
+        
+        
         """
-        vqres = vq.vq(np.asarray(points), self.points)        
-        if return_distortion:
-            return vqres[0],vqres[1]
-        else:
-            return vqres[0],None
+        point_info = PointInformation(self.lattice)
+        if not (self.lattice == other.lattice):
+            raise ValueError(("can only compare identical lattices: "
+                             "'{}' != '{}'").format(repr(self.lattice),
+                                                    repr(other.lattice)))
         
-        
-        
-    
+        if not isinstance(other,dict):
+            for key in self.keys():
+                point_info[key] = operator(self[key],other)
+            return point_info
+         
+        key_set = set(self.keys())
+        for key in other.keys():
+            key_set.add(key)
+        for key in key_set:
+            first = self.get(key, fill)
+            second = other.get(key, fill)
+            point_info[key] = operator(first,second)
+            
+        return point_info
+

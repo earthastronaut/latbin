@@ -7,16 +7,17 @@ from collections import Iterable
 # 3rd Party
 import numpy as np
 #vector quantization
+import scipy.cluster.vq as vq
 
 # Internal
-from .point_sets import PointSet, PointInformation
+from .point_information import  PointInformation
 
 __all__ = ["Lattice","ZLattice","DLattice","ALattice", "ELattice",
            "generate_lattice"]
 
 # ########################################################################### #
 
-class Lattice (PointSet):
+class Lattice (object):
     """
     The basic Lattice class. To have a specific lattice please use the subclass
     
@@ -94,7 +95,9 @@ class Lattice (PointSet):
         raise Exception("Lattice isn't meant to be used this way see the generate_lattice helper function")
 
     def __eq__ (self,other):
-        if not isinstance(other,type(self)):
+        if id(self) != id(other):
+            return False        
+        if not type(other) == type(self):
             return False
         if other.ndim != self.ndim:
             return False
@@ -103,7 +106,86 @@ class Lattice (PointSet):
         if np.all(other.scale != self.scale):
             return False
         return True
+
+    def __setitem__ (self,index,value):
+        raise TypeError("'{}' does not support item assignment".format(repr(self)))
+    
+    def __setattr__ (self,attrib,value):
+        if hasattr(self,attrib):
+            msg = "'{}' attribute is immutable in '{}'".format(attrib,repr(self))
+            raise AttributeError(msg)
+        else:
+            object.__setattr__(self,attrib,value)
         
+    def __delattr__ (self,attrib):
+        if hasattr(self, attrib):
+            msg = "'{}' attribute is immutable in '{}'".format(attrib,repr(self))
+        else:
+            msg = "'{}' not an attribute of '{}'".format(attrib,repr(self))
+        raise AttributeError(msg)
+
+class PointSet (Lattice):
+    
+    def __init__ (self, point_coordinates, force_unique=True):
+        """
+        Parameters
+        ---------
+        point_coordinates : ndarray, size=(n_points , n_dims) 
+        force_unique : boolean
+            Force the point coordinates to be unique
+        
+        """
+        self.points = np.asarray(point_coordinates)
+        if force_unique:
+            self.points = np.unique(self.points)
+        Lattice.__init__(self,self.points.shape[-1],origin=None,
+                         scale=None,rotation=None)
+
+    def coordinates(self, point_index):
+        return self.points[point_index]
+    
+    def quantize (self,points, return_distortion=False):
+        """
+        Takes points and returns point set representation
+        
+        Parameters
+        ----------
+        points : ndarray, size=(n_points , n_dims)
+            array of points to quantize
+            
+        Returns
+        -------
+        reps : list, length M
+            a list of representations for each point in pts
+            
+        """
+        vqres = vq.vq(np.asarray(points), self.points)        
+        if return_distortion:
+            return vqres[0],vqres[1]
+        else:
+            return vqres[0],None
+        
+    def count (self,point):
+        n = 0
+        for pt in self.points:
+            if pt == point:
+                n += 1
+        return n
+    
+    def index (self,point):
+        for i,pt in enumerate(self.points):
+            if pt == point:
+                return i
+        raise ValueError("'{}' not in PointSet".format(pt))
+    
+    def __eq__(self, other):
+        is_equal = Lattice.__eq__(self, other)        
+        if not is_equal:
+            return False
+        if not np.all(self.points == other.points):
+            return False
+        return True
+      
 class ZLattice (Lattice):
     
     def __init__ (self, ndim, origin=None, scale=None, rotation=None):
@@ -124,7 +206,7 @@ class ZLattice (Lattice):
         ------
         
         """
-        lspace_pts = self.to_lattice_space(points)
+        lspace_pts = self.data_to_lattice_space(points)
         return np.array(lspace_pts + 0.5, dtype=int)
 
 class DLattice (Lattice):
@@ -159,11 +241,11 @@ class ALattice (Lattice):
 
     def __init__ (self, ndim, origin=None, scale=None, rotation=None):
         Lattice.__init__(self, ndim, origin, scale, rotation)
-        self._rot = np.zeros((ndim, ndim+1))
+        rot = np.zeros((ndim, ndim+1))
         for dim_idx in range(ndim):
-            self._rot[dim_idx, :dim_idx+1] = 1
-            self._rot[dim_idx, dim_idx+1] = -(dim_idx + 1)
-        self._rot /= np.sqrt(np.sum(self._rot**2, axis=-1)).reshape((-1, 1))
+            rot[dim_idx, :dim_idx+1] = 1
+            rot[dim_idx, dim_idx+1] = -(dim_idx + 1)
+        self._rot = rot/np.sqrt(np.sum(rot**2, axis=-1)).reshape((-1, 1))
         #self._rot[:-1] = np.eye(ndim)
         #self._rot[1:] -= np.eye(ndim)
         #self._rot = self._rot.transpose()
@@ -212,8 +294,7 @@ class ALattice (Lattice):
                     perm_idx = permutations[i, -1-j]
                     quantized_repr[i, perm_idx] += 1
         return quantized_repr
-                
-    
+                    
     def representation_to_centers(self, representations):
         return self.lattice_to_data_space(representations)
 
