@@ -2,6 +2,6 @@
 
 __version__ = "0.0.1"
 
-from point_sets import *
+from point_information import *
 from lattice import *
 import utils
