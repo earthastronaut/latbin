@@ -13,7 +13,7 @@ import scipy.cluster.vq as vq
 from .point_information import  PointInformation
 
 __all__ = ["Lattice","ZLattice","DLattice","ALattice", "ELattice",
-           "generate_lattice"]
+           "generate_lattice","CompositeLattice"]
 
 # ########################################################################### #
 
@@ -303,10 +303,54 @@ class ELattice (Lattice):
     def __init__ (self, ndim, origin=None, scale=None, rotation=None):
         Lattice.__init__(self, ndim, origin, scale, rotation)
 
+class CompositeLattice (Lattice):
+    
+    def __init__ (self, lattices, column_idx=None, origin=None, scale=None, rotation=None):
+        # get lattices
+        self.lat_dims = [lat.ndim for lat in lattices]
+        ndim = np.sum(self.lat_dims)        
+        self.lattices = lattices
+        
+        # get the index mapping
+        if column_idx is None:
+            current_i = 0
+            column_idx = []
+            for ldim in self.lat_dims:
+                column_idx.append(range(current_i,current_i+ldim))
+                current_i += ldim
+            
+        column_idx = list(column_idx)
+        if len(column_idx) != len(self.lattices):
+            raise ValueError("column_idx must have the same length as given lattices")
+
+        used_idxs = set()            
+        none_idx = -1
+        for i,row in enumerate(column_idx):
+            if row is None:
+                if none_idx >= 0:
+                    raise ValueError("can only have one None (aka default) in column_idx")
+                none_idx = i
+                continue
+            
+            if len(row) != self.lat_dims[i]:
+                raise ValueError("the number of indicies in column_idx[i]={} must match lattice dimension = {} ".format(len(row),self.lat_dims[i]))
+            
+            used_idxs = used_idxs.union(map(int,row))
+        
+        if none_idx >= 0:
+            unused_idxs = set(range(ndim)) - used_idxs
+            if len(unused_idxs) != self.lat_dims[none_idx]:
+                raise ValueError("number of unused indicies does not match default lattice dimension")
+            column_idx[none_idx] = sorted(list(unused_idxs))
+        
+        self.column_idx = column_idx
+        Lattice.__init__(self,ndim,origin,scale,rotation)
+    
 families = {'z':ZLattice,
             'd':DLattice,
             'a':ALattice,
             }
+
 # TODO: add class to families when known
 
 # ########################################################################### #
@@ -326,8 +370,9 @@ def histogram(points, bins):
             pi[key] += 1
     return pi
 
+pass
 # ########################################################################### #
- 
+
 def generate_lattice (ndim, origin=None, scale=None, family="z", packing_radius=1.0):
     rotation = None
     # TODO: fix packing radius to work 

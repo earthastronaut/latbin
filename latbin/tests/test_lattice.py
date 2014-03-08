@@ -7,7 +7,7 @@ import unittest
 import numpy as np
 
 # Internal
-from latbin import ZLattice, DLattice, ALattice, Lattice, generate_lattice
+from latbin import ZLattice, DLattice, ALattice, Lattice, generate_lattice, CompositeLattice
 
 # ########################################################################### #
 
@@ -92,7 +92,6 @@ class TestLattice (unittest.TestCase):
                    " to data coords").format(lattice,)
             self.assert_(is_equal,msg)
             
-    
     def test_quantize(self):
         dimensions = [2, 3, 4]
         lattices = [ALattice, DLattice, ZLattice]
@@ -111,6 +110,18 @@ class TestLattice (unittest.TestCase):
                 #plt.scatter(q_error[:, 0], q_error[:, 1])
                 #plt.show()
                 pass
+
+    def test_composite_lattice (self):
+        lattices = [ALattice(2),
+                    ZLattice(3),
+                    DLattice(2)]
+        
+        column_idx = [[0,3],
+                      None,
+                      [1,2]]
+        comp_lat = CompositeLattice(lattices,column_idx)
+        
+        
 
 # ########################################################################### #
 
