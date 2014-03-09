@@ -11,6 +11,8 @@
 *.so
 *.py[cod]
 build
+dist
+MANIFEST
 
 # Installer logs #
 ##################
