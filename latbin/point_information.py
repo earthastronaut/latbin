@@ -190,3 +190,15 @@ class PointInformation (InformationDict):
             
         return point_info
 
+    def binned_data (self):
+        """
+        Returns the binned data and values in the lattice space
+        
+        Returns
+        -------
+        binned_data : ndarray
+        
+        """
+        lattice_data = self.lattice.lattice_to_data_space(self.keys())
+        values = np.array(self.values())
+        return np.hstack((lattice_data,values.reshape((len(values),1))))
