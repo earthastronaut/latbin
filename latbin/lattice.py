@@ -94,6 +94,20 @@ class Lattice (object):
     def representation_to_centers(self, representations):
         raise Exception("Lattice isn't meant to be used this way see the generate_lattice helper function")
 
+    def histogram (self, points):
+        """histogram a set of points onto a lattice
+        
+        Program
+        -------
+        points : ndarray, shape=(M,N)
+            The length of the second dimension must match self.ndim
+        """
+        pi = PointInformation(self)
+        quantized = [tuple(latpt) for latpt in self.quantize(points)]
+        for latpt in quantized:
+            pi[latpt] = pi.get(latpt,0) + 1
+        return pi
+
     def __eq__ (self,other):
         if id(self) != id(other):
             return False        
@@ -350,25 +364,6 @@ families = {'z':ZLattice,
             'd':DLattice,
             'a':ALattice,
             }
-
-# TODO: add class to families when known
-
-# ########################################################################### #
-
-def histogram(points, bins):
-    """histogram a set of points onto a pointset
-    points: ndarray
-    bins: a PointSet or Lattice instance
-    """
-    keys = bins.quantize(points)
-    pi = PointInformation()
-    for i, key in enumerate(keys):
-        pi_num = pi.get(key)
-        if pi_num == None:
-            pi[key] = 1
-        else:
-            pi[key] += 1
-    return pi
 
 pass
 # ########################################################################### #
