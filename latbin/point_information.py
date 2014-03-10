@@ -199,6 +199,21 @@ class PointInformation (InformationDict):
         binned_data : ndarray
         
         """
-        lattice_data = self.lattice.lattice_to_data_space(self.keys())
+        centers = self.centers() 
         values = np.array(self.values())
-        return np.hstack((lattice_data,values.reshape((len(values),1))))
+        return np.hstack((centers,values.reshape((len(values),1))))
+
+    def centers (self):
+        """
+        Get the centers of the lattice points with values
+        
+        Returns
+        -------
+        centers : ndarray, shape=(N,ndim)
+        """
+        return self.lattice.lattice_to_data_space(self.keys())
+        
+        
+        
+        
+        
