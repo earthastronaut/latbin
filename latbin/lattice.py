@@ -96,18 +96,34 @@ class Lattice (object):
     def representation_to_centers(self, representations):
         raise Exception("Lattice isn't meant to be used this way see the generate_lattice helper function")
 
-    def histogram (self, points):
+    def histogram (self, points,C=None,reduce_C_func=np.mean):
         """histogram a set of points onto a lattice
         
-        Program
-        -------
+        Parameters
+        ----------
         points : ndarray, shape=(M,N)
             The length of the second dimension must match self.ndim
+        C : ndarray, shape=(M,)
+            The values to bin up, if `None` then the value is the point density
+        reduce_C_func : callable, one argument
+            Pass the values of C for a given bin into this function,
+            reduce_C_func(C[idx]) where idx are those elements within a 
+            particular bin
+        
+        
         """
         pi = PointInformation(self)
         quantized = [tuple(latpt) for latpt in self.quantize(points)]
-        for latpt in quantized:
-            pi[latpt] = pi.get(latpt,0) + 1
+        if C is None: # for density
+            for latpt in quantized:
+                pi[latpt] = pi.get(latpt,0) + 1
+        else: # for extra dimensional value
+            collected = {}
+            for i,latpt in enumerate(quantized):
+                collected.setdefault(latpt,[]).append(i)
+            c = np.asarray(C)
+            for latpt in quantized:
+                pi[latpt] = reduce_C_func(c[collected[latpt]])
         return pi
 
     def __eq__ (self,other):
@@ -371,16 +387,16 @@ class CompositeLattice (Lattice):
                       [2,5],
                       [6,7,9]]
         
-        The ith element of column_idx corresponds to the ith lattice of lattices
-        and it's length equals that the lattice.ndim value
+        The i-th element of column_idx corresponds to the i-th lattice of lattices
+        and it's length equals the value of lattice.ndim
         
         You can use `None` in column_idx once to create a default lattice for 
         columns to be placed in. Say data is (1000,5) and composite lattice is 
         (A2,Z3). If you wanted the [2,4] columns in A2 and all the others in Z 
-        then:
+        then you can use:
         
-        column_idx = [[2,4],
-                      None]
+        column_idx = [[2,4], = [[2,4],
+                      None]     [0,1,3]]
         
         
         """
