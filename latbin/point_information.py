@@ -84,11 +84,13 @@ class InformationDict (dict):
         if not isinstance(other,dict):
             for key in self.keys():
                 self[key] = operator(self[key],other)
-        
+            return self
+            
         for key,second in other.iteritems():
             first = self.get(key,fill)
             self[key] = operator(first,second)            
-                 
+        return self
+         
     def __add__ (self,other):
         # Note: having this as a separate function call is slightly slower
         # computationally for low numbers (~10), but at high numbers (>100) is 
@@ -114,7 +116,7 @@ class InformationDict (dict):
         return self.operation(other, operator=lambda x,y:x/y, fill=np.nan)        
      
     def __idiv__ (self,other):
-        return self.inplace_operation(other, operator=lambda x,y:x*y, fill=1)    
+        return self.inplace_operation(other, operator=lambda x,y:x/y, fill=1)    
     
     def __rshift__ (self,other):
         return self.inplace_operation(other, operator=lambda x,y:x<<y, fill=0)    
@@ -170,16 +172,16 @@ class PointInformation (InformationDict):
         
         """
         point_info = PointInformation(self.lattice)
-        if not (self.lattice == other.lattice):
-            raise ValueError(("can only compare identical lattices: "
-                             "'{}' != '{}'").format(repr(self.lattice),
-                                                    repr(other.lattice)))
-        
+
         if not isinstance(other,dict):
             for key in self.keys():
                 point_info[key] = operator(self[key],other)
             return point_info
-         
+        
+        if not (self.lattice == other.lattice):
+            raise ValueError(("can only compare identical lattices: "
+                             "'{}' != '{}'").format(repr(self.lattice),
+                                                    repr(other.lattice)))                 
         key_set = set(self.keys())
         for key in other.keys():
             key_set.add(key)
@@ -190,19 +192,36 @@ class PointInformation (InformationDict):
             
         return point_info
 
-    def binned_data (self):
+    def inplace_operation (self,other,operator,fill=np.nan):
         """
-        Returns the binned data and values in the lattice space
+        This performs an operation on the information
+        
+        Parameters
+        ----------
+        other : dict, PointInformation, any
+        operator : callable, takes two values
+        fill : any
         
         Returns
         -------
-        binned_data : ndarray
+        None - changes the current data in self
         
-        """
-        centers = self.centers() 
-        values = np.array(self.values())
-        return np.hstack((centers,values.reshape((len(values),1))))
-
+        
+        """        
+        if not isinstance(other,dict):
+            for key in self.keys():
+                self[key] = operator(self[key],other)
+            return self
+        
+        if not (self.lattice == other.lattice):
+            raise ValueError(("can only compare identical lattices: "
+                             "'{}' != '{}'").format(repr(self.lattice),
+                                                    repr(other.lattice)))        
+        for key,second in other.iteritems():
+            first = self.get(key,fill)
+            self[key] = operator(first,second)            
+        return self
+    
     def centers (self):
         """
         Get the centers of the lattice points with values
@@ -212,8 +231,4 @@ class PointInformation (InformationDict):
         centers : ndarray, shape=(N,ndim)
         """
         return self.lattice.lattice_to_data_space(self.keys())
-        
-        
-        
-        
         

@@ -96,7 +96,7 @@ class Lattice (object):
     def representation_to_centers(self, representations):
         raise Exception("Lattice isn't meant to be used this way see the generate_lattice helper function")
 
-    def histogram (self, points,C=None,reduce_C_func=np.mean):
+    def histogram (self, points,C=None,reduce_C_func=np.mean,norm=False):
         """histogram a set of points onto a lattice
         
         Parameters
@@ -110,13 +110,21 @@ class Lattice (object):
             reduce_C_func(C[idx]) where idx are those elements within a 
             particular bin
         
-        
+        Returns
+        -------
+        point_info : `latbin.PointInformation`
+            
         """
         pi = PointInformation(self)
         quantized = [tuple(latpt) for latpt in self.quantize(points)]
         if C is None: # for density
             for latpt in quantized:
                 pi[latpt] = pi.get(latpt,0) + 1
+            if norm:  
+                s = len(points)
+                for k in pi:
+                    pi[k] = pi[k]/s
+                #pi /= len(points)           
         else: # for extra dimensional value
             collected = {}
             for i,latpt in enumerate(quantized):
@@ -163,7 +171,6 @@ class PointSet (Lattice):
     Lattice composed of arbitrary lattice centers
     
     """
-    
     
     def __init__ (self, point_coordinates, force_unique=True):
         """
@@ -235,7 +242,7 @@ class ZLattice (Lattice):
         self.minimal_norm = 1.0
     
     def representation_to_centers(self, representations):
-        return self.lattice_to_data_space(representations - 0.5)
+        return self.lattice_to_data_space(representations)
     
     def quantize (self,points,return_distortion=False):
         """
@@ -249,7 +256,7 @@ class ZLattice (Lattice):
         
         """
         lspace_pts = self.data_to_lattice_space(points)
-        return np.array(lspace_pts + 0.5, dtype=int)
+        return np.around(lspace_pts).astype(int)
 
 class DLattice (Lattice):
 
@@ -351,6 +358,10 @@ families = {'z':ZLattice,
             }
 
 class CompositeLattice (Lattice):
+    """
+    A Lattice composed of a list of separate lattices
+    
+    """
     
     def __init__ (self, lattices, column_idx=None, origin=None, scale=None, rotation=None):
         """Create a composite of lattices
@@ -455,9 +466,37 @@ class CompositeLattice (Lattice):
             if len(unused_idxs) != self.lat_dims[none_idx]:
                 raise ValueError("number of unused indicies does not match default lattice dimension")
             column_idx[none_idx] = sorted(list(unused_idxs))
-        
+
+        for i,idx in enumerate(column_idx):
+            column_idx[i] = np.asarray(idx,dtype=int)
+
         self.column_idx = column_idx
         Lattice.__init__(self,ndim,origin,scale,rotation)
+
+    def lattice_to_data_space(self, lattice_coords):
+        return Lattice.lattice_to_data_space(self, lattice_coords)
+    
+    def data_to_lattice_space(self, data_coords):        
+        lattice_coords_list = []
+        arrays = self.map_data_to_lattice(data_coords)  
+        lat_coords_list = [self.lattices[i].data_to_lattice_space(arrays[i]) for i in xrange(len(arrays))]
+        
+        return Lattice.data_to_lattice_space(self, data_coords)
+
+    def quantize(self, points):
+        
+        #    return ndarray shape (npts,self.ndim)
+        pass
+
+    def representation_to_centers(self, representations):
+        Lattice.representation_to_centers(self, representations)
+
+    def histogram(self, points, C=None, reduce_C_func=np.mean):
+        return Lattice.histogram(self, points, C=C, reduce_C_func=reduce_C_func)
+
+    def map_data_to_lattice (self,points):
+        arrays = [points[:,idx] for idx in self.column_idx]
+        return arrays
 
     def __eq__ (self,other):
         equals = super(CompositeLattice, self).__eq__(other)
