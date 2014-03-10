@@ -56,10 +56,9 @@ class TestLattice (unittest.TestCase):
             self.assertTrue(np.all(lc==output_lc), msg="bad {}".format(i))
              
     def test_generate_lattice (self):
-        rkws = [dict(ndim=1),
-                dict(ndim=1)]
-         
-        rpairs = [(ZLattice(**rkws[0]),generate_lattice(family='z',**rkws[0])),
+        ndim = 2
+        rpairs = [(ZLattice(ndim),generate_lattice(ndim,family='z')),
+                  (ALattice(ndim),generate_lattice(ndim,family='a')),
                   ]
                    
         for i,(l1,l2) in enumerate(rpairs):
@@ -69,7 +68,10 @@ class TestLattice (unittest.TestCase):
             # TODO: implement test
         
     def test_lattice_data_space (self):
-        
+        """
+        This tests the ability of the different lattices to convert
+        to lattice space and back
+        """
         delta = 1e-14
         ndim = 3
         scale = np.random.normal(0,2,ndim)
@@ -78,7 +80,9 @@ class TestLattice (unittest.TestCase):
         
         kws = dict(scale=scale,origin=origin)
         
-        test_lattices = [ZLattice(ndim,**kws),DLattice(ndim,**kws)]
+        test_lattices = [ZLattice(ndim,**kws),
+                         ALattice(ndim,**kws),
+                         DLattice(ndim,**kws)]
         
         nrows = 10
         data = np.random.normal(0,2,nrows*ndim).reshape((nrows,ndim))
@@ -106,7 +110,6 @@ class TestLattice (unittest.TestCase):
                 msg="lattice quantization for %s in %d dimensions failed" % (lat, dim)
                 self.assertTrue(np.all(np.abs(q_error) < 1.0), msg) 
                 
-
     def test_composite_lattice (self):
         lattices = [ALattice(2),
                     ZLattice(3),
@@ -121,5 +124,16 @@ class TestLattice (unittest.TestCase):
 
 # ########################################################################### #
 
+    def test_composite_lattice_str (self):
+        comp_lat = CompositeLattice("a2,z3,d4,a3")
+        self.assertEqual(12, comp_lat.ndim,"incorrect number of dimensions read in")
+        lattices = [ALattice(2),
+                    ZLattice(3),
+                    DLattice(4),
+                    ALattice(3)]
+
+
+pass
+# ########################################################################### #
 if __name__ == "__main__":
     unittest.main()

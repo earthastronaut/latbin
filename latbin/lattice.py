@@ -3,6 +3,8 @@
 # Standard Library
 from __future__ import print_function, division
 from collections import Iterable
+import re
+from copy import deepcopy
 
 # 3rd Party
 import numpy as np
@@ -10,7 +12,7 @@ import numpy as np
 import scipy.cluster.vq as vq
 
 # Internal
-from .point_information import  PointInformation
+from .point_information import PointInformation
 
 __all__ = ["Lattice","ZLattice","DLattice","ALattice", "ELattice",
            "generate_lattice","CompositeLattice"]
@@ -19,7 +21,7 @@ __all__ = ["Lattice","ZLattice","DLattice","ALattice", "ELattice",
 
 class Lattice (object):
     """
-    The basic Lattice class. To have a specific lattice please use the subclass
+    The basic Lattice class. To have a specific lattice please a subclass
     
     """
     def __init__(self, ndim, origin, scale, rotation):
@@ -139,6 +141,11 @@ class Lattice (object):
         raise AttributeError(msg)
 
 class PointSet (Lattice):
+    """
+    Lattice composed of arbitrary lattice centers
+    
+    """
+    
     
     def __init__ (self, point_coordinates, force_unique=True):
         """
@@ -201,7 +208,10 @@ class PointSet (Lattice):
         return True
       
 class ZLattice (Lattice):
-    
+    """
+    Lattice fitted to the integers Z
+
+    """    
     def __init__ (self, ndim, origin=None, scale=None, rotation=None):
         Lattice.__init__(self, ndim, origin, scale, rotation)
         self.minimal_norm = 1.0
@@ -317,11 +327,82 @@ class ELattice (Lattice):
     def __init__ (self, ndim, origin=None, scale=None, rotation=None):
         Lattice.__init__(self, ndim, origin, scale, rotation)
 
+families = {'z':ZLattice,
+            'd':DLattice,
+            'a':ALattice,
+            }
+
 class CompositeLattice (Lattice):
     
     def __init__ (self, lattices, column_idx=None, origin=None, scale=None, rotation=None):
+        """Create a composite of lattices
+        
+        A composite lattice contains several lattices stacked together. For 
+        example if you have 10 dimensions and you want to break some of them
+        up you could make a composite lattice A2,A2,Z4,D2 whose total ndim 
+        equals the number of dimensions. 
+        
+        Parameters
+        ----------
+        lattices : string or list of lattices
+            The lattices must be a either ZLattice, DLattice, or ALattice
+            the total dimension is assumed from the sum of each lattice dimension. 
+            Optionally, you can give a string for lattices such as "a2,z2,d3" which 
+            becomes [ALattice(2), ZLattice(2), DLattice(3)] with total dimension 7
+        column_idx : list of integer lists
+            Maps data columns to specific lattices. See Note 1
+        origin : array-like
+        scale : array-like
+        rotation : array-like
+            *Currently not implemented*
+        
+        Notes
+        -----
+        __1.__ column_idx maps data columns to specific lattices. Say you have a 
+        composite lattice consisting of A2, Z2 and D3 and data which has the shape
+        (1000,10). Because the composite is only dimension 7 you can only bin
+        in 7 of the 10 data dimensions. You can specify which 7 columns are mapped
+        to which lattices. Continuing the example, say [0,1] columns to A2, [2,5] 
+        to Z2, and 6,7,9 to D3 then you would give:
+        
+        column_idx = [[0,1],
+                      [2,5],
+                      [6,7,9]]
+        
+        The ith element of column_idx corresponds to the ith lattice of lattices
+        and it's length equals that the lattice.ndim value
+        
+        You can use `None` in column_idx once to create a default lattice for 
+        columns to be placed in. Say data is (1000,5) and composite lattice is 
+        (A2,Z3). If you wanted the [2,4] columns in A2 and all the others in Z 
+        then:
+        
+        column_idx = [[2,4],
+                      None]
+        
+        
+        """
+        
         # get lattices
-        self.lat_dims = [lat.ndim for lat in lattices]
+        if isinstance(lattices,basestring):
+            lattice_string = deepcopy(lattices)
+            lat_dims = []
+            lattices = []
+            for latstr in lattice_string.split(","):
+                search_result = re.search("([a,d,z]).*(\d)",latstr.lower())
+                if search_result is None:
+                    raise ValueError("Couldn't parse lattice {} from lattices string".format(latstr))
+                lat_type = search_result.groups()[0]
+                try:
+                    lat_dim = int(search_result.groups()[1])
+                except ValueError:
+                    raise ValueError("Must give letter then dimension")
+                lat_dims.append(lat_dim)
+                lattices.append(families[lat_type](lat_dim))
+            self.lat_dims = lat_dims
+        else:
+            self.lat_dims = [lat.ndim for lat in lattices]
+            
         ndim = np.sum(self.lat_dims)        
         self.lattices = lattices
         
@@ -359,19 +440,13 @@ class CompositeLattice (Lattice):
         
         self.column_idx = column_idx
         Lattice.__init__(self,ndim,origin,scale,rotation)
-    
-families = {'z':ZLattice,
-            'd':DLattice,
-            'a':ALattice,
-            }
 
 pass
 # ########################################################################### #
 
 def generate_lattice (ndim, origin=None, scale=None, family="z", packing_radius=1.0):
     rotation = None
-    # TODO: fix packing radius to work 
-    family = family.lower()
+    family = family.lower()    
     if not families.has_key(family):
         raise ValueError("family must be in ({}), see NOTE1 in doc string".format(", ".join(families.keys())))
     latclass = families[family] 
