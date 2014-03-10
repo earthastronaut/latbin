@@ -120,10 +120,6 @@ class TestLattice (unittest.TestCase):
                       [1,2]]
         comp_lat = CompositeLattice(lattices,column_idx)
         
-        
-
-# ########################################################################### #
-
     def test_composite_lattice_str (self):
         comp_lat = CompositeLattice("a2,z3,d4,a3")
         self.assertEqual(12, comp_lat.ndim,"incorrect number of dimensions read in")
@@ -131,8 +127,15 @@ class TestLattice (unittest.TestCase):
                     ZLattice(3),
                     DLattice(4),
                     ALattice(3)]
-
-
+        
+        for i,lat in enumerate(lattices):
+            msg = "lattices {} are not equal".format(comp_lat.lattices[i])
+            self.assertEqual(comp_lat.lattices[i], lat,msg)
+        comp_lat2 = CompositeLattice(lattices)
+        self.assertEqual(comp_lat,comp_lat2,("two implementations of composite"
+                                             " lattices are not equal"))
+        
+            
 pass
 # ########################################################################### #
 if __name__ == "__main__":

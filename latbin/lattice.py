@@ -111,8 +111,6 @@ class Lattice (object):
         return pi
 
     def __eq__ (self,other):
-        if id(self) != id(other):
-            return False        
         if not type(other) == type(self):
             return False
         if other.ndim != self.ndim:
@@ -122,6 +120,10 @@ class Lattice (object):
         if np.all(other.scale != self.scale):
             return False
         return True
+
+    def __ne__ (self,other):
+        equals = self.__eq__(other)
+        return not equals
 
     def __setitem__ (self,index,value):
         raise TypeError("'{}' does not support item assignment".format(repr(self)))
@@ -441,6 +443,23 @@ class CompositeLattice (Lattice):
         self.column_idx = column_idx
         Lattice.__init__(self,ndim,origin,scale,rotation)
 
+    def __eq__ (self,other):
+        equals = super(CompositeLattice, self).__eq__(other)
+        if not equals:
+            return False
+        if self.lat_dims != other.lat_dims:
+            return False
+        if self.column_idx != other.column_idx:
+            return False        
+        if len(self.lattices) != len(other.lattices):
+            return False
+        for i,lat in enumerate(self.lattices):
+            if lat != other.lattices[i]:
+                return False 
+        return True            
+        
+        
+        
 pass
 # ########################################################################### #
 
