@@ -6,12 +6,15 @@ This python package is used for binning onto lattices in multiple dimensions.
 
 In the terminal you can install this in the usual way.
 
+```bash
     python setup.py install
+```
 
 ## Basic Example ##
 
 This example shows two data sets which have various lengths but both have two dimensions. We create an A2 (aka honeycomb) lattice which we histogram both data sets onto. Then we can make comparisons (e.g. by subtraction) of the two and analyze the result. 
 
+```python
     import latbin
     import numpy as np
 
@@ -38,4 +41,4 @@ This example shows two data sets which have various lengths but both have two di
     import matplotlib.pylab as plt
     plt.scatter(x_centers, y_centers, c=diff.values())
     plt.show()
-
+```
