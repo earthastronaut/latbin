@@ -3,7 +3,7 @@
 This python package is used for binning onto lattices in multiple dimensions. 
 
 
-## Why Use Lattices ## 
+## Why Use Lattices 
 
 
 For "regular" 2D histogramming you implicitly use a Z2 lattice! But the errors involved with quantizing to a Z2 lattices is larger than A2.
@@ -12,7 +12,7 @@ insert plot here showing proper comparison of Z2 and A2
 give name of file which creates Z2-A2 comparison
 
 
-## Basic Example ##
+## Basic Example
 
 
 This example shows two data sets which have various lengths but both have two dimensions. We create an A2 (aka honeycomb) lattice which we histogram both data sets onto. Then we can make comparisons (e.g. by subtraction) of the two and analyze the result. 
@@ -42,7 +42,7 @@ plt.show()
 ```
 
 
-## Installation ##
+## Installation
 
 
 In the terminal you can install this in the usual way.
