@@ -20,14 +20,44 @@ __all__ = ["Lattice","ZLattice","DLattice","ALattice", "ELattice",
 # ########################################################################### #
 
 class LatticeImplementationError (NotImplementedError):
+    """ This error is designed for lattice methods which have not been 
+    implemented
+    """
     pass
 
 class Lattice (object):
-    """
-    The basic Lattice class. To have a specific lattice please a subclass
+    """ The abstract lattice class.
     
+    If :math:`a_1,...,a_1` are linearly independent vectors in *m*-dimensional 
+    real Euclidean space :math:`R^m` with :math:`m \geq n`, the set of all vectors
+    
+    .. math::
+    
+        x = u_n a_n + .... + u_n a_n
+        
+    where :math:`u_1,...,u_{n}` are arbitrary integers, is called an 
+    *n*-dimensional *lattice* :math:`\Lambda`. [Conway1982]_
+     
     """
     def __init__(self, ndim, origin, scale, rotation):
+        """
+        The abstract lattie clasee
+        
+        Parameters
+        ----------
+        ndim : integer
+            The number of lattice dimensions
+        origin : None or array-like of floats ndim long
+            Gives the origin of the lattice
+        scale : None, float, or array-like of floats ndim long
+            Sets the scaling for which a spacing of 1 in lattice corresponds in 
+            data space. None is assumed scaling of 1. A float will be cast to 
+            all the dimensions. An array will be used to scale each dimension
+            independently.
+        rotation : array, shape=(ndim,ndim)
+            Not currently implemented
+
+        """        
         if ndim <= 0:
             raise ValueError("ndim must be > 0")
         self.ndim = ndim
@@ -53,11 +83,17 @@ class Lattice (object):
         self.rotation = np.asarray(rotation)
     
     def lattice_to_data_space (self, lattice_coords):
-        """
-        transforms from the internal lattice coordinates to the original 
+        """Transforms from the internal lattice coordinates to the original 
         data coordinates.
         
-        lattice_coords: ndarray shape = (n_points, n_dims)  or (n_dims,)
+        The internal representations of a particular lattice can have multiple
+        representations. We've pick a particular one for this lattice and this
+        function maps from those coordinates to your data space  
+        
+        Parameters
+        ----------
+        lattice_coords: ndarray, shape = (n_points, n_dims)  or (n_dims,)
+        
         """
         lattice_coords = np.asarray(lattice_coords)
         
@@ -73,11 +109,22 @@ class Lattice (object):
         return data_coords        
      
     def data_to_lattice_space (self,data_coords):
-        """
-        transforms from the internal lattice coordinates to the original 
-        data coordinates.
+        """Transforms from the data coordinates to the internal lattice coordinates
         
-        data_coords: ndarray shape = (n_points, n_dims)  or (n_dims,)
+        The internal representations of a particular lattice can have multiple
+        representations. We've pick a particular one for this lattice and this
+        function maps your data space to those coordinates.
+        
+        
+        Parameters
+        ----------
+        data_coords: ndarray shape = (npoints, ndims)  or (ndims,)
+            The points in data coordinates
+        
+        Returns
+        -------
+        lattice_coords : ndarray, shape=(npoints,*)
+            The lattice representations of each data point
         
         """
         data_coords = np.asarray(data_coords)
@@ -94,13 +141,52 @@ class Lattice (object):
         return lattice_coords        
 
     def quantize(self, points):
-        raise Exception("Lattice isn't meant to be used this way see the generate_lattice helper function")
+        """Takes points in the data space and quantizes to this lattice. 
+        
+        This takes the data and uses particular algorithms described in
+        [Conway83]_ to take the data and quantize to the lattice points. Each 
+        data point is mapped to the closest lattice point. This function 
+        returns the lattice point in the space where the lattice can be 
+        uniquely and easily represented.
+        
+        Parameters
+        ----------
+        points : ndarray, shape=(npoints,ndim)
+        
+        Returns
+        -------
+        representations : ndarray, shape=(npoints,*)
+            These are the internal representations of lattice points for each
+            data point which was given
+        
+        """
+        raise LatticeImplementationError("Lattice isn't meant to be used this way see the generate_lattice helper function")
     
     def representation_to_centers(self, representations):
-        raise Exception("Lattice isn't meant to be used this way see the generate_lattice helper function")
+        """Takes internal lattice representations and returns corresponding data
+        centers.
+        
+        The internal representations of a particular lattice can have multiple
+        representations. We've pick a particular one for this lattice and this
+        function maps the lattice point representations to the data space.
+                
+        Parameters
+        ----------
+        representations : ndarray, shape=(npoints,*)
+        
+        Returns
+        -------
+        centers : ndarray, shape=(npoints,ndim)
+        
+        """
+        raise NotImplementedError("Lattice isn't meant to be used this way see the generate_lattice helper function")
 
     def histogram (self, points,C=None,reduce_C_func=np.mean,norm=False):
-        """histogram a set of points onto a lattice
+        """Histogram a set of points onto a lattice
+        
+        This uses the `quantize` method to map the data points onto lattice
+        coordinates. The mapped data points are gathered up based on the 
+        the lattice coordinate representations.
         
         Parameters
         ----------
@@ -138,6 +224,7 @@ class Lattice (object):
         return pi
 
     def __eq__ (self,other):
+        """ self==other """
         if not type(other) == type(self):
             return False
         if other.ndim != self.ndim:
@@ -149,13 +236,16 @@ class Lattice (object):
         return True
 
     def __ne__ (self,other):
+        """ self!=other """
         equals = self.__eq__(other)
         return not equals
 
     def __setitem__ (self,index,value):
+        """ self[i]=value ! not mutable """
         raise TypeError("'{}' does not support item assignment".format(repr(self)))
     
     def __setattr__ (self,attrib,value):
+        """ self.attrib = value ! not mutable """
         if hasattr(self,attrib):
             msg = "'{}' attribute is immutable in '{}'".format(attrib,repr(self))
             raise AttributeError(msg)
@@ -163,6 +253,7 @@ class Lattice (object):
             object.__setattr__(self,attrib,value)
         
     def __delattr__ (self,attrib):
+        """ del self.attrib ! not mutable """
         if hasattr(self, attrib):
             msg = "'{}' attribute is immutable in '{}'".format(attrib,repr(self))
         else:
@@ -170,8 +261,10 @@ class Lattice (object):
         raise AttributeError(msg)
 
 class PointSet (Lattice):
-    """
-    Lattice composed of arbitrary lattice centers
+    """ Lattice composed of arbitrary lattice centers.
+    
+    In this lattice you explicitly give the lattice coordinates in the data 
+    space. The quantization is done using scipy.cluster.vq algorithm.
     
     """
     
@@ -179,7 +272,7 @@ class PointSet (Lattice):
         """
         Parameters
         ---------
-        point_coordinates : ndarray, size=(n_points , n_dims) 
+        point_coordinates : ndarray, size=(npoints , ndims) 
         force_unique : boolean
             Force the point coordinates to be unique
         
@@ -191,17 +284,29 @@ class PointSet (Lattice):
                          scale=None,rotation=None)
 
     def coordinates(self, point_index):
+        """ Lattice coordinates of particular point_coordinates
+            
+        Parameters
+        ----------
+        point_index : integer or slice
+        
+        Returns
+        -------
+        points : npdarray
+            This implements self.points[point_index]
+        
+        """
         return self.points[point_index]
     
-    def quantize (self,points, return_distortion=False):
-        """
-        Takes points and returns point set representation
+    def quantize (self, points, return_distortion=False):
+        """ Takes points and returns point set representation
         
         Parameters
         ----------
         points : ndarray, size=(n_points , n_dims)
             array of points to quantize
-            
+        return_distortion : boolean
+        
         Returns
         -------
         reps : list, length M
@@ -215,19 +320,50 @@ class PointSet (Lattice):
             return vqres[0],None
         
     def count (self,point):
-        n = 0
+        """ Count number of times a point appears in self.points
+        
+        Parameters
+        ----------
+        points : ndarray
+            Point in self.points
+        
+        Returns
+        -------
+        count : integer
+            Number of times the point appears in lattice
+        
+        """
+        count = 0
         for pt in self.points:
             if pt == point:
-                n += 1
-        return n
+                count += 1
+        return count
     
     def index (self,point):
+        """ Count number of times a point appears in self.points
+        
+        Parameters
+        ----------
+        points : ndarray
+            Point in self.points
+        
+        Returns
+        -------
+        index : integer
+            The first index where the point is found
+        
+        Raises
+        ------
+        ValueError : if point is not in PointSet
+        
+        """
         for i,pt in enumerate(self.points):
             if pt == point:
                 return i
         raise ValueError("'{}' not in PointSet".format(pt))
     
     def __eq__(self, other):
+        """ self==other """
         is_equal = Lattice.__eq__(self, other)        
         if not is_equal:
             return False
@@ -236,36 +372,37 @@ class PointSet (Lattice):
         return True
       
 class ZLattice (Lattice):
-    """
-    Lattice fitted to the integers Z
-
+    """ The Z lattice is composed of n-dimensional integers. This is most 
+    classically thought of as square binning.  
+    
     """    
     def __init__ (self, ndim, origin=None, scale=None, rotation=None):
         Lattice.__init__(self, ndim, origin, scale, rotation)
         self.minimal_norm = 1.0
     
+    __init__.__doc__ = Lattice.__init__.__doc__
+
     def representation_to_centers(self, representations):
         return self.lattice_to_data_space(representations)
     
-    def quantize (self,points,return_distortion=False):
-        """
-        Parameters
-        ----------
-        data_points : ndarray
-        return_distortion : boolean
-        
-        Return
-        ------
-        
-        """
+    representation_to_centers.__doc__ = Lattice.representation_to_centers.__doc__
+    
+    def quantize (self,points):
         lspace_pts = self.data_to_lattice_space(points)
         return np.around(lspace_pts).astype(int)
 
+    quantize.__doc__ = Lattice.quantize.__doc__
+
 class DLattice (Lattice):
+    """ The D lattice consists of integer coordinates with an even sum.
+    
+    """
 
     def __init__ (self, ndim, origin=None, scale=None, rotation=None):
         Lattice.__init__(self, ndim, origin, scale, rotation)
         self.minimal_norm = np.sqrt(2)
+    
+    __init__.__doc__ = Lattice.__init__.__doc__
     
     def quantize(self, points):
         lspace_pts = self.data_to_lattice_space(points)
@@ -284,13 +421,19 @@ class DLattice (Lattice):
                 else:
                     quantized_repr[i, max_idx] += 1
         return quantized_repr
-                
+    
+    quantize.__doc__ = Lattice.quantize.__doc__            
     
     def representation_to_centers(self, representations):
         return self.lattice_to_data_space(representations)
+    
+    representation_to_centers.__doc__ = Lattice.representation_to_centers.__doc__
 
 class ALattice (Lattice):
-
+    """The A Lattice consists of points $(x_{0},x_{1},\cdots,x_{n})$ having integer
+    coordinates that sum to zero. $A_{2}$ is equivalent to the familiar 
+    two-dimensional hexagonal (honeycomb) lattice.
+    """
     def __init__ (self, ndim, origin=None, scale=None, rotation=None):
         Lattice.__init__(self, ndim, origin, scale, rotation)
         rot = np.zeros((ndim, ndim+1))
@@ -302,6 +445,8 @@ class ALattice (Lattice):
         #self._rot[1:] -= np.eye(ndim)
         #self._rot = self._rot.transpose()
         self._rot_inv = np.linalg.pinv(self._rot)
+
+    __init__.__doc__ = Lattice.__init__.__doc__
     
     def data_to_lattice_space(self, points):
         #import pdb; pdb.set_trace()
@@ -312,6 +457,8 @@ class ALattice (Lattice):
         #lat_points -= psum.reshape((-1, 1))
         return np.dot(points, self._rot)
     
+    data_to_lattice_space.__doc__ = Lattice.data_to_lattice_space.__doc__
+    
     def lattice_to_data_space(self, points):
         #print("points", points)
         #neg_psum = points[:, -1]
@@ -321,6 +468,8 @@ class ALattice (Lattice):
         unrot = np.dot(points, self._rot_inv)
         return super(ALattice, self).lattice_to_data_space(unrot)
 
+    lattice_to_data_space.__doc__ = Lattice.lattice_to_data_space.__doc__
+    
     def quantize(self, points):
         # take points to lattice space
         lspace_pts = self.data_to_lattice_space(points)
@@ -346,14 +495,24 @@ class ALattice (Lattice):
                     perm_idx = permutations[i, -1-j]
                     quantized_repr[i, perm_idx] += 1
         return quantized_repr
+      
+    quantize.__doc__ = Lattice.quantize.__doc__
                     
     def representation_to_centers(self, representations):
         return self.lattice_to_data_space(representations)
 
-class ELattice (Lattice):
+    representation_to_centers.__doc__ = Lattice.representation_to_centers.__doc__
 
+class ELattice (Lattice):
+    """
+    The E Lattice 
+    
+    """
     def __init__ (self, ndim, origin=None, scale=None, rotation=None):
         Lattice.__init__(self, ndim, origin, scale, rotation)
+        LatticeImplementationError("E lattice not yet implemented")
+
+    __init__.__doc__ = Lattice.__init__.__doc__
 
 families = {'z':ZLattice,
             'd':DLattice,
@@ -361,8 +520,7 @@ families = {'z':ZLattice,
             }
 
 class CompositeLattice (Lattice):
-    """
-    A Lattice composed of a list of separate lattices
+    """ This lattice is composed of a list of separate lattices
     
     """
     
@@ -479,29 +637,35 @@ class CompositeLattice (Lattice):
     def lattice_to_data_space(self, lattice_coords):
         return Lattice.lattice_to_data_space(self, lattice_coords)
     
+    lattice_to_data_space.__doc__ = Lattice.lattice_to_data_space.__doc__
+    
     def data_to_lattice_space(self, data_coords):        
         lattice_coords_list = []
         arrays = self.map_data_to_lattice(data_coords)  
         lat_coords_list = [self.lattices[i].data_to_lattice_space(arrays[i]) for i in xrange(len(arrays))]
-        
         return Lattice.data_to_lattice_space(self, data_coords)
 
-    def quantize(self, points):
-        
-        #    return ndarray shape (npts,self.ndim)
-        pass
+    data_to_lattice_space.__doc__ = Lattice.data_to_lattice_space.__doc__
 
+    def quantize(self, points): 
+        #    return ndarray shape (npts,self.ndim)
+        LatticeImplementationError("can't yet quantize composite lattices")
+
+    quantize.__doc__ = Lattice.quantize.__doc__
+    
     def representation_to_centers(self, representations):
+        LatticeImplementationError()
         Lattice.representation_to_centers(self, representations)
 
-    def histogram(self, points, C=None, reduce_C_func=np.mean):
-        return Lattice.histogram(self, points, C=C, reduce_C_func=reduce_C_func)
+    representation_to_centers.__doc__ = Lattice.representation_to_centers.__doc__
 
     def map_data_to_lattice (self,points):
+        """still beta"""
         arrays = [points[:,idx] for idx in self.column_idx]
         return arrays
 
     def __eq__ (self,other):
+        """ self == other """
         equals = super(CompositeLattice, self).__eq__(other)
         if not equals:
             return False

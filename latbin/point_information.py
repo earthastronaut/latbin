@@ -19,7 +19,10 @@ __all__ = ["PointInformation"]
 # TODO: Make this a Pandas.dataframe or Pandas.dataseries
 
 class InformationDict (dict):
+    """
+    Stores dict information which can be combined and operated upon
     
+    """
     def __init__ (self,*args,**kwargs):
         super(InformationDict,self).__init__(*args,**kwargs)
            
@@ -33,8 +36,8 @@ class InformationDict (dict):
     # --------------------------------------------------------------------------- #
       
     def operation (self,other,operator,fill=np.nan):
-        """
-        This performs an operation on the information
+        """This performs an operation on the information and returns a new
+        object
         
         Parameters
         ----------
@@ -45,7 +48,6 @@ class InformationDict (dict):
         Returns
         -------
         point_info : PointInformation
-        
         
         """
         point_info = InformationDict()
@@ -66,8 +68,7 @@ class InformationDict (dict):
         return point_info
  
     def inplace_operation (self,other,operator,fill=np.nan):
-        """
-        This performs an operation on the information
+        """This performs an operation on the information inplace
         
         Parameters
         ----------
@@ -77,8 +78,8 @@ class InformationDict (dict):
         
         Returns
         -------
-        None - changes the current data in self
-        
+        self : type(self)
+            changes the current data in self
         
         """
         if not isinstance(other,dict):
@@ -140,16 +141,19 @@ class InformationDict (dict):
         return self.operation(other, operator=lambda x,y:x/y, fill=fill)            
 
 class PointInformation (InformationDict):
-    """Stores information for each point
-    
-    Parameters
-    ----------
-    lattice : `latbin.Lattice`
-        The associated lattice object of the point information
-    *args, **kwargs : defaults for dict
-    
+    """
+    Stores information for each point
+        
     """
     def __init__ (self,lattice,*args,**kwargs):
+        """
+        Parameters
+        ----------
+        lattice : `latbin.Lattice`
+            The associated lattice object of the point information
+        *args, **kwargs : defaults for dict(*args,**kwargs)
+        
+        """
         if not isinstance(lattice, latbin.Lattice):
             raise TypeError("lattice must be instance of `latbin.Lattice`")
         self.lattice = lattice 
@@ -192,22 +196,9 @@ class PointInformation (InformationDict):
             
         return point_info
 
-    def inplace_operation (self,other,operator,fill=np.nan):
-        """
-        This performs an operation on the information
-        
-        Parameters
-        ----------
-        other : dict, PointInformation, any
-        operator : callable, takes two values
-        fill : any
-        
-        Returns
-        -------
-        None - changes the current data in self
-        
-        
-        """        
+    operation.__doc__ = InformationDict.operation.__doc__
+    
+    def inplace_operation (self,other,operator,fill=np.nan):       
         if not isinstance(other,dict):
             for key in self.keys():
                 self[key] = operator(self[key],other)
@@ -222,13 +213,15 @@ class PointInformation (InformationDict):
             self[key] = operator(first,second)            
         return self
     
+    inplace_operation.__doc__ = InformationDict.inplace_operation.__doc__
+    
     def centers (self):
-        """
-        Get the centers of the lattice points with values
+        """ Get the centers of the lattice points with values
         
         Returns
         -------
         centers : ndarray, shape=(N,ndim)
+        
         """
         return self.lattice.lattice_to_data_space(self.keys())
         
