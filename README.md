@@ -15,7 +15,8 @@ give name of file which creates Z2-A2 comparison
 ## Basic Example
 
 
-This example shows two data sets which have various lengths but both have two dimensions. We create an A2 (aka honeycomb) lattice which we histogram both data sets onto. Then we can make comparisons (e.g. by subtraction) of the two and analyze the result. 
+This example shows how to take a normal data set and histogram the data onto
+an A2 (aka honeycomb) lattice using latbin. 
 
 ```python
 import latbin
