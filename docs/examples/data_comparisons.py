@@ -17,10 +17,8 @@ diff = h1-h2
 
 # get the data centers
 centers = diff.centers()
-x_centers = centers[:, 0]
-y_centers = centers[:, 1]
 
 # show the results
 import matplotlib.pylab as plt
-plt.colorbar(plt.scatter(x_centers, y_centers, c=diff.values()))
+plt.colorbar(plt.scatter(centers[:,0], centers[:,1], c=diff.values()))
 plt.show()
