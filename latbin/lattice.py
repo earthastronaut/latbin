@@ -19,6 +19,9 @@ __all__ = ["Lattice","ZLattice","DLattice","ALattice", "ELattice",
 
 # ########################################################################### #
 
+class LatticeImplementationError (NotImplementedError):
+    pass
+
 class Lattice (object):
     """
     The basic Lattice class. To have a specific lattice please a subclass
