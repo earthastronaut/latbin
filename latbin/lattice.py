@@ -8,6 +8,7 @@ from copy import deepcopy
 
 # 3rd Party
 import numpy as np
+import pandas as pd
 #vector quantization
 import scipy.cluster.vq as vq
 
@@ -181,48 +182,24 @@ class Lattice (object):
         """
         raise NotImplementedError("Lattice isn't meant to be used this way see the generate_lattice helper function")
 
-    def histogram (self, points,C=None,reduce_C_func=np.mean,norm=False):
-        """Histogram a set of points onto a lattice
-        
-        This uses the `quantize` method to map the data points onto lattice
-        coordinates. The mapped data points are gathered up based on the 
-        the lattice coordinate representations.
-        
-        Parameters
-        ----------
-        points : ndarray, shape=(M,N)
-            The length of the second dimension must match self.ndim
-        C : ndarray, shape=(M,)
-            The values to bin up, if `None` then the value is the point density
-        reduce_C_func : callable, one argument
-            Pass the values of C for a given bin into this function,
-            reduce_C_func(C[idx]) where idx are those elements within a 
-            particular bin
-        
-        Returns
-        -------
-        point_info : `latbin.PointInformation`
-            
-        """
-        pi = PointInformation(self)
-        quantized = [tuple(latpt) for latpt in self.quantize(points)]
-        if C is None: # for density
-            for latpt in quantized:
-                pi[latpt] = pi.get(latpt,0) + 1
-            if norm:  
-                s = len(points)
-                for k in pi:
-                    pi[k] = pi[k]/s
-                #pi /= len(points)           
-        else: # for extra dimensional value
-            collected = {}
-            for i,latpt in enumerate(quantized):
-                collected.setdefault(latpt,[]).append(i)
-            c = np.asarray(C)
-            for latpt in quantized:
-                pi[latpt] = reduce_C_func(c[collected[latpt]])
-        return pi
-
+    def histogram (self, data, bin_cols=None, bin_prefix="q"):
+        if not isinstance(data, pd.DataFrame):
+            data = pd.DataFrame(data)
+        if bin_cols == None:
+            bin_cols = data.columns[:self.ndim]
+        if len(bin_cols) != self.ndim:
+            raise ValueError("bin_cols isn't long enough")
+        #quantize
+        q_pts = self.quantize(data[bin_cols].values)
+        # make the quantized result a pandas data frame
+        q_dict = {}
+        for q_col_idx in range(q_pts.shape[1]):
+            q_dict["%s_%d" % (bin_prefix, q_col_idx)] = q_pts[:, q_col_idx]
+        q_df = pd.DataFrame(data=q_dict, index=data.index)
+        joint_df = pd.concat([data, q_df], axis=1)
+        grouped_df = joint_df.groupby(by=q_dict.keys())
+        return grouped_df
+    
     def __eq__ (self,other):
         """ self==other """
         if not type(other) == type(self):
