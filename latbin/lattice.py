@@ -10,6 +10,7 @@ import cPickle
 
 # 3rd Party
 import numpy as np
+import pandas as pd
 #vector quantization
 import scipy.cluster.vq as vq
 
@@ -282,6 +283,24 @@ class Lattice (object):
     
     save.__doc__ = save_lattice.__doc__
         
+    def histogram (self, data, bin_cols=None, bin_prefix="q"):
+        if not isinstance(data, pd.DataFrame):
+            data = pd.DataFrame(data)
+        if bin_cols == None:
+            bin_cols = data.columns[:self.ndim]
+        if len(bin_cols) != self.ndim:
+            raise ValueError("bin_cols isn't long enough")
+        #quantize
+        q_pts = self.quantize(data[bin_cols].values)
+        # make the quantized result a pandas data frame
+        q_dict = {}
+        for q_col_idx in range(q_pts.shape[1]):
+            q_dict["%s_%d" % (bin_prefix, q_col_idx)] = q_pts[:, q_col_idx]
+        q_df = pd.DataFrame(data=q_dict, index=data.index)
+        joint_df = pd.concat([data, q_df], axis=1)
+        grouped_df = joint_df.groupby(by=q_dict.keys())
+        return grouped_df
+    
     def __eq__ (self,other):
         """ self==other """
         if not type(other) == type(self):
