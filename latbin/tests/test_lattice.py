@@ -57,8 +57,8 @@ class TestLattice (unittest.TestCase):
              
     def test_generate_lattice (self):
         ndim = 2
-        rpairs = [(ZLattice(ndim),generate_lattice(ndim,family='z')),
-                  (ALattice(ndim),generate_lattice(ndim,family='a')),
+        rpairs = [(ZLattice(ndim),generate_lattice(ndim,lattice_type='z')),
+                  (ALattice(ndim),generate_lattice(ndim,lattice_type='a')),
                   ]
                    
         for i,(l1,l2) in enumerate(rpairs):
