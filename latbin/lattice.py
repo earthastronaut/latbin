@@ -237,12 +237,11 @@ class Lattice (object):
             msg = "'{}' not an attribute of '{}'".format(attrib,repr(self))
         raise AttributeError(msg)
 
-class PointSet (Lattice):
-    """ Lattice composed of arbitrary lattice centers.
+class PointCloud (Lattice):
+    """A representation of a finite set of points. While Technically not a 
+    Lattice in the mathematical sense it implements the same API
     
-    In this lattice you explicitly give the lattice coordinates in the data 
-    space. The quantization is done using scipy.cluster.vq algorithm.
-    
+    The quantization is done using scipy.cluster.vq algorithm.
     """
     
     def __init__ (self, point_coordinates, force_unique=True):
@@ -331,13 +330,13 @@ class PointSet (Lattice):
         
         Raises
         ------
-        ValueError : if point is not in PointSet
+        ValueError : if point is not in PointCloud
         
         """
         for i,pt in enumerate(self.points):
             if pt == point:
                 return i
-        raise ValueError("'{}' not in PointSet".format(pt))
+        raise ValueError("'{}' not in PointCloud".format(pt))
     
     def __eq__(self, other):
         """ self==other """
