@@ -124,34 +124,85 @@ class Lattice (object):
         if rotation is None:
             self.rotation = None
         else:
-            self.rotation = np.asarray(rotation)  
+            self.rotation = np.asarray(rotation)
+            
+    def __delattr__ (self,attrib):
+        """ del self.attrib ! not mutable """
+        if hasattr(self, attrib):
+            msg = "'{}' attribute is immutable in '{}'".format(attrib,repr(self))
+        else:
+            msg = "'{}' not an attribute of '{}'".format(attrib,repr(self))
+        raise AttributeError(msg)  
     
-    def lattice_to_data_space (self, lattice_coords):
-        """Transforms from the internal lattice coordinates to the original 
-        data coordinates.
+    def __eq__ (self,other):
+        """ self==other """
+        if not type(other) == type(self):
+            return False
+        if other.ndim != self.ndim:
+            return False
+        if np.all(other.origin != self.origin):
+            return False
+        if np.all(other.scale != self.scale):
+            return False
+        return True
+    
+    def __ne__ (self,other):
+        """ self!=other """
+        equals = self.__eq__(other)
+        return not equals
+
+    def __setattr__ (self,attrib,value):
+        """ self.attrib = value ! not mutable """
+        if hasattr(self,attrib):
+            msg = "'{}' attribute is immutable in '{}'".format(attrib,repr(self))
+            raise AttributeError(msg)
+        else:
+            object.__setattr__(self,attrib,value)
+    
+    def __setitem__ (self,index,value):
+        """ self[i]=value ! not mutable """
+        raise TypeError("'{}' does not support item assignment".format(repr(self)))
+    
+    
+    def bin(self, data, bin_cols=None, bin_prefix="q"):
+        """bin a set of points into the Voronoi cells of this lattice
         
-        The internal representations of a particular lattice can have multiple
-        representations. We've pick a particular one for this lattice and this
-        function maps from those coordinates to your data space  
+        This uses the `quantize` method to map the data points onto lattice
+        coordinates. The mapped data points are gathered up based on the 
+        the lattice coordinate representations.
         
         Parameters
         ----------
-        lattice_coords: ndarray, shape = (n_points, n_dims)  or (n_dims,)
-        
+        data : ndarray, shape=(M,N)
+            the data to bin 
+            the length of the second dimension must match self.ndim
+        bin_cols : list
+            the indexes of the columns to be used in order to bin the data
+        bin_prefix: string
+            prefix for the lattice quantization columns used to bin on.
+            
+        Returns
+        -------
+        bin_nums: pandas.groupby
+            
         """
-        lattice_coords = np.asarray(lattice_coords)
-        
-        if lattice_coords.shape[-1] != self.ndim:
-            raise ValueError("lattice_coords must be ndim={}".format(self.ndim))
-        
-        if lattice_coords.ndim == 1:
-            lc = lattice_coords.reshape((1,)+lattice_coords.shape)
-            data_coords = self.scale*lc+self.origin
-        else:
-            data_coords = self.scale*lattice_coords+self.origin
-        
-        return data_coords        
-     
+        if not isinstance(data, pd.DataFrame):
+            data = pd.DataFrame(np.asarray(data))
+        if bin_cols == None:
+            bin_cols = data.columns[:self.ndim]
+        if len(bin_cols) != self.ndim:
+            raise ValueError("bin_cols isn't long enough")
+        #quantize
+        q_pts = self.quantize(data[bin_cols].values)
+        # make the quantized result a pandas data frame
+        q_dict = {}
+        for q_col_idx in range(q_pts.shape[1]):
+            q_dict["%s_%d" % (bin_prefix, q_col_idx)] = q_pts[:, q_col_idx]
+        q_df = pd.DataFrame(data=q_dict, index=data.index)
+        joint_df = pd.concat([data, q_df], axis=1)
+        grouped_df = joint_df.groupby(by=q_dict.keys())
+        return grouped_df
+    
     def data_to_lattice_space (self,data_coords):
         """Transforms from the data coordinates to the internal lattice coordinates
         
@@ -183,7 +234,36 @@ class Lattice (object):
             lattice_coords = (data_coords-self.origin)/self.scale
         
         return lattice_coords        
-
+    
+    def histogram(self, *args, **kwargs):
+        return self.bin(*args, **kwargs).size()
+    
+    def lattice_to_data_space (self, lattice_coords):
+        """Transforms from the internal lattice coordinates to the original 
+        data coordinates.
+        
+        The internal representations of a particular lattice can have multiple
+        representations. We've pick a particular one for this lattice and this
+        function maps from those coordinates to your data space  
+        
+        Parameters
+        ----------
+        lattice_coords: ndarray, shape = (n_points, n_dims)  or (n_dims,)
+        
+        """
+        lattice_coords = np.asarray(lattice_coords)
+        
+        if lattice_coords.shape[-1] != self.ndim:
+            raise ValueError("lattice_coords must be ndim={}".format(self.ndim))
+        
+        if lattice_coords.ndim == 1:
+            lc = lattice_coords.reshape((1,)+lattice_coords.shape)
+            data_coords = self.scale*lc+self.origin
+        else:
+            data_coords = self.scale*lattice_coords+self.origin
+        
+        return data_coords        
+    
     def quantize(self, points):
         """Takes points in the data space and quantizes to this lattice. 
         
@@ -228,87 +308,8 @@ class Lattice (object):
     def save (self,filepath,clobber=True):
         save_lattice(filepath,clobber)
     
-    save.__doc__ = save_lattice.__doc__
-    
-    def bin(self, data, bin_cols=None, bin_prefix="q"):
-        """bin a set of points into the Voronoi cells of this lattice
-        
-        This uses the `quantize` method to map the data points onto lattice
-        coordinates. The mapped data points are gathered up based on the 
-        the lattice coordinate representations.
-        
-        Parameters
-        ----------
-        data : ndarray, shape=(M,N)
-            the data to bin 
-            the length of the second dimension must match self.ndim
-        bin_cols : list
-            the indexes of the columns to be used in order to bin the data
-        bin_prefix: string
-            prefix for the lattice quantization columns used to bin on.
-            
-        Returns
-        -------
-        bin_nums: pandas.groupby
-            
-        """
-        if not isinstance(data, pd.DataFrame):
-            data = pd.DataFrame(np.asarray(data))
-        if bin_cols == None:
-            bin_cols = data.columns[:self.ndim]
-        if len(bin_cols) != self.ndim:
-            raise ValueError("bin_cols isn't long enough")
-        #quantize
-        q_pts = self.quantize(data[bin_cols].values)
-        # make the quantized result a pandas data frame
-        q_dict = {}
-        for q_col_idx in range(q_pts.shape[1]):
-            q_dict["%s_%d" % (bin_prefix, q_col_idx)] = q_pts[:, q_col_idx]
-        q_df = pd.DataFrame(data=q_dict, index=data.index)
-        joint_df = pd.concat([data, q_df], axis=1)
-        grouped_df = joint_df.groupby(by=q_dict.keys())
-        return grouped_df
-    
-    def histogram(self, *args, **kwargs):
-        return self.bin(*args, **kwargs).size()
-        
-    
-    def __eq__ (self,other):
-        """ self==other """
-        if not type(other) == type(self):
-            return False
-        if other.ndim != self.ndim:
-            return False
-        if np.all(other.origin != self.origin):
-            return False
-        if np.all(other.scale != self.scale):
-            return False
-        return True
+    save.__doc__ = save_lattice.__doc__    
 
-    def __ne__ (self,other):
-        """ self!=other """
-        equals = self.__eq__(other)
-        return not equals
-
-    def __setitem__ (self,index,value):
-        """ self[i]=value ! not mutable """
-        raise TypeError("'{}' does not support item assignment".format(repr(self)))
-    
-    def __setattr__ (self,attrib,value):
-        """ self.attrib = value ! not mutable """
-        if hasattr(self,attrib):
-            msg = "'{}' attribute is immutable in '{}'".format(attrib,repr(self))
-            raise AttributeError(msg)
-        else:
-            object.__setattr__(self,attrib,value)
-        
-    def __delattr__ (self,attrib):
-        """ del self.attrib ! not mutable """
-        if hasattr(self, attrib):
-            msg = "'{}' attribute is immutable in '{}'".format(attrib,repr(self))
-        else:
-            msg = "'{}' not an attribute of '{}'".format(attrib,repr(self))
-        raise AttributeError(msg)
 
 class PointCloud (Lattice):
     """A representation of a finite set of points. While Technically not a 
