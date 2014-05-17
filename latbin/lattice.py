@@ -5,6 +5,8 @@ from __future__ import print_function, division
 from collections import Iterable
 import re
 from copy import deepcopy
+import os
+import cPickle
 
 # 3rd Party
 import numpy as np
@@ -15,9 +17,50 @@ import scipy.cluster.vq as vq
 # Internal
 from .point_information import PointInformation
 
-__all__ = ["Lattice","ZLattice","DLattice","ALattice", "ELattice",
-           "generate_lattice","CompositeLattice"]
+__all__ = ["Lattice","ZLattice","DLattice","ALattice", "PointSet",
+           "generate_lattice","CompositeLattice","load_lattice","save_lattice"]
 
+# ########################################################################### #
+
+def load_lattice (filepath):
+    """ Load a lattice from file
+    
+    Parameters
+    ----------
+    filepath : string, ends in '.lat'
+        Gives the path to the save file
+
+    Returns
+    -------
+    lattice : `latbin.Lattice` subclass
+
+    """    
+    return cPickle.load(open(filepath,'r'))
+    
+def save_lattice (lattice,filepath,clobber=True):   
+    """ Save a lattice to file
+    
+    Parameters
+    ----------
+    lattice : `latbin.Lattice` subclass
+    filepath : string, ends in '.lat'
+        Gives the path to the save file
+    clobber : boolean
+        If True and filepath is an existing file then it will be overwritten
+
+    """
+    if not filepath.count(".lat"):
+        filepath += ".lat"
+    if os.path.isfile(filepath):
+        if clobber:
+            os.remove(filepath)
+        else:            
+            raise IOError("File exists '{}'".format(filepath))
+    if not isinstance(lattice,Lattice):
+        raise TypeError("lattice must be a Lattice subclass")
+    cPickle.dump(lattice,open(filepath,'w'))  
+
+pass
 # ########################################################################### #
 
 class LatticeImplementationError (NotImplementedError):
@@ -78,10 +121,10 @@ class Lattice (object):
         if len(self.scale) != ndim or self.scale.ndim != 1:
             raise ValueError("scale must be a float or a float vector of length={}".format(ndim))
         
-        # TODO: finish rotation
         if rotation is None:
-            rotation = np.eye(ndim) 
-        self.rotation = np.asarray(rotation)
+            self.rotation = None
+        else:
+            self.rotation = np.asarray(rotation)  
     
     def lattice_to_data_space (self, lattice_coords):
         """Transforms from the internal lattice coordinates to the original 
@@ -182,6 +225,64 @@ class Lattice (object):
         """
         raise NotImplementedError("Lattice isn't meant to be used this way see the generate_lattice helper function")
 
+    def histogram (self, points,C=None,reduce_C_func=np.mean,norm=False,
+                   indices=False):
+        """Histogram a set of points onto a lattice
+        
+        This uses the `quantize` method to map the data points onto lattice
+        coordinates. The mapped data points are gathered up based on the 
+        the lattice coordinate representations.
+        
+        Parameters
+        ----------
+        points : ndarray, shape=(M,N)
+            The length of the second dimension must match self.ndim
+        C : ndarray, shape=(M,)
+            The values to bin up, if `None` then the value is the point density
+        reduce_C_func : callable, one argument
+            Pass the values of C for a given bin into this function,
+            reduce_C_func(C[idx]) where idx are those elements within a 
+            particular bin
+        indices : boolean
+            If True then the values returned are a list of the point index which
+            fall in a particular bin
+        
+        Returns
+        -------
+        point_info : `latbin.PointInformation`
+            
+        """
+        pi = PointInformation(self)
+        quantized = [tuple(latpt) for latpt in self.quantize(points)]
+        if C is None and not indices: # for density
+            for latpt in quantized:
+                pi[latpt] = pi.get(latpt,0) + 1
+            if norm:  
+                s = len(points)
+                for k in pi:
+                    pi[k] = pi[k]/s
+                #pi /= len(points)           
+        else: # for extra dimensional value
+            # collect up all the indices 
+            collected = {}
+            for i,latpt in enumerate(quantized):
+                collected.setdefault(latpt,[]).append(i)
+            # if you want the indices then return them
+            if indices:
+                for latpt in quantized:
+                    pi[latpt] = collected[latpt]
+                return pi
+            # take the indicies and perform an operation
+            c = np.asarray(C)
+            for latpt in quantized:
+                pi[latpt] = reduce_C_func(c[collected[latpt]])
+        return pi
+
+    def save (self,filepath,clobber=True):
+        save_lattice(filepath,clobber)
+    
+    save.__doc__ = save_lattice.__doc__
+        
     def histogram (self, data, bin_cols=None, bin_prefix="q"):
         if not isinstance(data, pd.DataFrame):
             data = pd.DataFrame(data)
@@ -253,35 +354,46 @@ class PointCloud (Lattice):
             Force the point coordinates to be unique
         
         """
-        self.points = np.asarray(point_coordinates)
+        # check as an array
+        points = np.asarray(point_coordinates)
+        # if 1 dimensional add a dimension to
+        if points.ndim == 1:
+            points = points.reshape((len(points),1))
+        # If you force unqiue data points
         if force_unique:
-            self.points = np.unique(self.points)
-        Lattice.__init__(self,self.points.shape[-1],origin=None,
+            unique = list({tuple(pt) for pt in points})
+            points = np.array(unique)
+        # sort the data points down the first axis
+        points = np.sort(points)
+        
+        Lattice.__init__(self,points.shape[-1],origin=None,
                          scale=None,rotation=None)
-
-    def coordinates(self, point_index):
-        """ Lattice coordinates of particular point_coordinates
-            
-        Parameters
-        ----------
-        point_index : integer or slice
-        
-        Returns
-        -------
-        points : npdarray
-            This implements self.points[point_index]
-        
-        """
-        return self.points[point_index]
+        self.points = points
+        object.__delattr__(self,'origin')
+        object.__delattr__(self,'scale')
+        object.__delattr__(self,'rotation')
     
-    def quantize (self, points, return_distortion=False):
+    def data_to_lattice_space(self, data_coords):
+        # TODO: This is very slow and memory intensive, need a better way!
+        lattice_coords = []        
+        for point in data_coords:
+            lattice_coords.append(self.index(point))
+        return np.array(lattice_coords).reshape((len(lattice_coords),1))
+    
+    data_to_lattice_space.__doc__ = Lattice.data_to_lattice_space.__doc__
+   
+    def lattice_to_data_space(self, lattice_coords):
+        return self.points[np.asarray(lattice_coords,dtype=int)]
+    
+    lattice_to_data_space.__doc__ = Lattice.lattice_to_data_space.__doc__
+    
+    def quantize (self, points):
         """ Takes points and returns point set representation
         
         Parameters
         ----------
         points : ndarray, size=(n_points , n_dims)
             array of points to quantize
-        return_distortion : boolean
         
         Returns
         -------
@@ -290,10 +402,10 @@ class PointCloud (Lattice):
             
         """
         vqres = vq.vq(np.asarray(points), self.points)        
-        if return_distortion:
-            return vqres[0],vqres[1]
-        else:
-            return vqres[0],None
+        reps = vqres[0]
+        if reps.ndim == 1:
+            reps = reps.reshape((len(reps),1))
+        return reps
         
     def count (self,point):
         """ Count number of times a point appears in self.points
@@ -309,9 +421,10 @@ class PointCloud (Lattice):
             Number of times the point appears in lattice
         
         """
+        check_pt = tuple(point)
         count = 0
         for pt in self.points:
-            if pt == point:
+            if tuple(pt) == check_pt:
                 count += 1
         return count
     
@@ -333,8 +446,9 @@ class PointCloud (Lattice):
         ValueError : if point is not in PointCloud
         
         """
+        check_pt = tuple(point)
         for i,pt in enumerate(self.points):
-            if pt == point:
+            if tuple(pt) == check_pt:
                 return i
         raise ValueError("'{}' not in PointCloud".format(pt))
     
@@ -479,21 +593,10 @@ class ALattice (Lattice):
 
     representation_to_centers.__doc__ = Lattice.representation_to_centers.__doc__
 
-class ELattice (Lattice):
-    """
-    The E Lattice 
-    
-    """
-    def __init__ (self, ndim, origin=None, scale=None, rotation=None):
-        Lattice.__init__(self, ndim, origin, scale, rotation)
-        LatticeImplementationError("E lattice not yet implemented")
-
-    __init__.__doc__ = Lattice.__init__.__doc__
-
-families = {'z':ZLattice,
-            'd':DLattice,
-            'a':ALattice,
-            }
+lattice_types = {'z':ZLattice,
+                'd':DLattice,
+                'a':ALattice,
+                }
 
 class CompositeLattice (Lattice):
     """ This lattice is composed of a list of separate lattices
@@ -564,7 +667,7 @@ class CompositeLattice (Lattice):
                 except ValueError:
                     raise ValueError("Must give letter then dimension")
                 lat_dims.append(lat_dim)
-                lattices.append(families[lat_type](lat_dim))
+                lattices.append(lattice_types[lat_type](lat_dim))
             self.lat_dims = lat_dims
         else:
             self.lat_dims = [lat.ndim for lat in lattices]
@@ -655,22 +758,97 @@ class CompositeLattice (Lattice):
             if lat != other.lattices[i]:
                 return False 
         return True            
-        
-        
-        
+                     
 pass
 # ########################################################################### #
 
-def generate_lattice (ndim, origin=None, scale=None, family="z", packing_radius=1.0):
+def generate_lattice (ndim, origin=None, scale=None, largest_dim_errors=None,
+                      lattice_type="", packing_radius=1.0):    
+    
+    # ===================== get lattice class
+    lattice_type = lattice_type.lower() 
+    if lattice_type in ('packing','covering'):
+        # ------------------- 
+        if ndim == 1:
+            # gives both packing and covering
+            lattice_type = 'z'
+        # ------------------- 
+        elif ndim == 2:
+            # gives both packing and covering            
+            lattice_type = 'a'
+        # ------------------- 
+        elif ndim == 3:
+            # gives packing (a) and covering (a*)            
+            lattice_type = 'a'
+        # ------------------- 
+        elif ndim == 4:
+            if lattice_type == 'packing':
+                lattice_type = 'd'
+            elif lattice_type == 'covering':
+                lattice_type = 'a' # (a*)
+        # ------------------- 
+        elif ndim == 5:
+            if lattice_type == 'packing':
+                lattice_type = 'd'
+            elif lattice_type == 'covering':
+                lattice_type = 'a' # (a*)
+        # ------------------- 
+        elif ndim == 6:
+            if lattice_type == 'packing':
+                LatticeImplementationError("e6 not implemented yet")
+                lattice_type = 'e6'
+            elif lattice_type == 'covering':
+                lattice_type = 'a' # (a*)
+        # ------------------- 
+        elif ndim == 7:
+            if lattice_type == 'packing':
+                LatticeImplementationError("e7 not implemented yet")
+                lattice_type = 'e7'
+            elif lattice_type == 'covering':
+                lattice_type = 'a' # (a*)
+        # ------------------- 
+        elif ndim == 8:
+            if lattice_type == 'packing':
+                LatticeImplementationError("e8 not implemented yet")
+                lattice_type = 'e8'
+            elif lattice_type == 'covering':
+                lattice_type = 'a' # (a*)
+        # ------------------- 
+        elif ndim == 12:
+            if lattice_type == 'packing':
+                LatticeImplementationError("k12 not implemented yet")
+                lattice_type = 'k12'
+            elif lattice_type == 'covering':
+                lattice_type = 'a' # (a*)
+        # ------------------- 
+        elif ndim in (16,24):
+            if lattice_type == 'packing':
+                LatticeImplementationError("not planning to implement lambda16 or 24 lattices")                
+            elif lattice_type == 'covering':
+                lattice_type = 'a' # (a*) 
+        else:
+            lattice_type = 'a'
+            
+    if not lattice_types.has_key(lattice_type):
+        raise ValueError("lattice_type must be in ({}), see NOTE1 in doc string".format(", ".join(lattice_types.keys())))
+    latclass = lattice_types[lattice_type] 
+    
+    # ===================== get scale
+    scale /= packing_radius
+    largest_dim_errors # ndarray, which gives the desired largest errors in each dimension
+    
+    # ===================== get origin
+    
+    
+    # ===================== get rotation
     rotation = None
-    family = family.lower()    
-    if not families.has_key(family):
-        raise ValueError("family must be in ({}), see NOTE1 in doc string".format(", ".join(families.keys())))
-    latclass = families[family] 
-    return latclass(ndim, origin, scale, rotation) #TODO: this only works if all the arguments for every lattice class is the same. is it?
+    
+    # ===================== create lattice
+    lat = latclass(ndim, origin, scale, rotation) 
+    
+    return lat
 
-generate_lattice.__doc__ =     """
-    Function for getting a lattice object based on input parameters
+generate_lattice.__doc__ =     """ Function for getting a lattice object based on input parameters
     
     Parameters
     ----------
@@ -680,14 +858,20 @@ generate_lattice.__doc__ =     """
         1D array-like object which gives the origin of lattice in ndim
     scale : float or array-like of floats, shape=(ndim,)
         If a float then cast to an 1D array of length ndim. The 1D array is used to scale the data space
-    family : string in ({0})
+    lattice_type : 'covering', 'packing', 'z', 'd', 'a'
         Gives the family of lattices to generate. See NOTES1.
+        * 'covering' : thinnest covering, take point packing expand spheres until they cover all the points. thickness=sum(sphere_volume)/total_volum 
+        * 'packing' : tightest packing, get the points as close as possible
+        * 'z' : ZLattice
+        * 'd' : DLattice
+        * 'a' : ALattice
+    
     packing_radius : float (optional)
         This is used to modify the scale. scale \= packing_radius
         
     Returns
     -------
-    Lattice : {1}
+    Lattice : {0}
         Depending on family, this returns a lattice object
     
     
@@ -696,8 +880,7 @@ generate_lattice.__doc__ =     """
     __1)__ Families of lattices are defined TODO: finish
         * ALattice : ndim=2 is a hexbin lattice
     
-    """.format(", ".join(families.keys()),
-               ", ".join([val.__name__ for val in families.values()]))
+    """.format(", ".join([val.__name__ for val in lattice_types.values()]))
 
     
     
