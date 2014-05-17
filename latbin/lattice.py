@@ -17,7 +17,7 @@ import scipy.cluster.vq as vq
 # Internal
 from .point_information import PointInformation
 
-__all__ = ["Lattice","ZLattice","DLattice","ALattice", "PointSet",
+__all__ = ["Lattice","ZLattice","DLattice","ALattice", "PointCloud",
            "generate_lattice","CompositeLattice","load_lattice","save_lattice"]
 
 # ########################################################################### #
@@ -225,9 +225,13 @@ class Lattice (object):
         """
         raise NotImplementedError("Lattice isn't meant to be used this way see the generate_lattice helper function")
 
-    def histogram (self, points,C=None,reduce_C_func=np.mean,norm=False,
-                   indices=False):
-        """Histogram a set of points onto a lattice
+    def save (self,filepath,clobber=True):
+        save_lattice(filepath,clobber)
+    
+    save.__doc__ = save_lattice.__doc__
+    
+    def bin(self, data, bin_cols=None, bin_prefix="q"):
+        """bin a set of points into the Voronoi cells of this lattice
         
         This uses the `quantize` method to map the data points onto lattice
         coordinates. The mapped data points are gathered up based on the 
@@ -235,57 +239,21 @@ class Lattice (object):
         
         Parameters
         ----------
-        points : ndarray, shape=(M,N)
-            The length of the second dimension must match self.ndim
-        C : ndarray, shape=(M,)
-            The values to bin up, if `None` then the value is the point density
-        reduce_C_func : callable, one argument
-            Pass the values of C for a given bin into this function,
-            reduce_C_func(C[idx]) where idx are those elements within a 
-            particular bin
-        indices : boolean
-            If True then the values returned are a list of the point index which
-            fall in a particular bin
-        
+        data : ndarray, shape=(M,N)
+            the data to bin 
+            the length of the second dimension must match self.ndim
+        bin_cols : list
+            the indexes of the columns to be used in order to bin the data
+        bin_prefix: string
+            prefix for the lattice quantization columns used to bin on.
+            
         Returns
         -------
-        point_info : `latbin.PointInformation`
+        bin_nums: pandas.groupby
             
         """
-        pi = PointInformation(self)
-        quantized = [tuple(latpt) for latpt in self.quantize(points)]
-        if C is None and not indices: # for density
-            for latpt in quantized:
-                pi[latpt] = pi.get(latpt,0) + 1
-            if norm:  
-                s = len(points)
-                for k in pi:
-                    pi[k] = pi[k]/s
-                #pi /= len(points)           
-        else: # for extra dimensional value
-            # collect up all the indices 
-            collected = {}
-            for i,latpt in enumerate(quantized):
-                collected.setdefault(latpt,[]).append(i)
-            # if you want the indices then return them
-            if indices:
-                for latpt in quantized:
-                    pi[latpt] = collected[latpt]
-                return pi
-            # take the indicies and perform an operation
-            c = np.asarray(C)
-            for latpt in quantized:
-                pi[latpt] = reduce_C_func(c[collected[latpt]])
-        return pi
-
-    def save (self,filepath,clobber=True):
-        save_lattice(filepath,clobber)
-    
-    save.__doc__ = save_lattice.__doc__
-        
-    def histogram (self, data, bin_cols=None, bin_prefix="q"):
         if not isinstance(data, pd.DataFrame):
-            data = pd.DataFrame(data)
+            data = pd.DataFrame(np.asarray(data))
         if bin_cols == None:
             bin_cols = data.columns[:self.ndim]
         if len(bin_cols) != self.ndim:
@@ -300,6 +268,10 @@ class Lattice (object):
         joint_df = pd.concat([data, q_df], axis=1)
         grouped_df = joint_df.groupby(by=q_dict.keys())
         return grouped_df
+    
+    def histogram(self, *args, **kwargs):
+        return self.bin(*args, **kwargs).size()
+        
     
     def __eq__ (self,other):
         """ self==other """
@@ -745,19 +717,21 @@ class CompositeLattice (Lattice):
 
     def __eq__ (self,other):
         """ self == other """
-        equals = super(CompositeLattice, self).__eq__(other)
-        if not equals:
+        if not isinstance(other, CompositeLattice):
+            return False
+        if not len(self.lattices) == len(other.lattices):
             return False
         if self.lat_dims != other.lat_dims:
             return False
-        if self.column_idx != other.column_idx:
-            return False        
-        if len(self.lattices) != len(other.lattices):
-            return False
+        #print(self.column_idx)
+        #print(other.column_idx)
+        for ci1, ci2 in zip(self.column_idx, other.column_idx):
+            if not np.all(ci1 == ci2):
+                return False
         for i,lat in enumerate(self.lattices):
             if lat != other.lattices[i]:
                 return False 
-        return True            
+        return True          
                      
 pass
 # ########################################################################### #
@@ -834,6 +808,8 @@ def generate_lattice (ndim, origin=None, scale=None, largest_dim_errors=None,
     latclass = lattice_types[lattice_type] 
     
     # ===================== get scale
+    if scale == None:
+        scale = 1.0
     scale /= packing_radius
     largest_dim_errors # ndarray, which gives the desired largest errors in each dimension
     

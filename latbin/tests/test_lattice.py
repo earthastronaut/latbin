@@ -110,20 +110,19 @@ class TestLattice (unittest.TestCase):
        
     def test_histogram (self):
         npts,ndim = 5,2
+        #a2 = ALattice(ndim)
+        z2 = ZLattice(ndim)
         
-        a2 = ALattice(ndim)
+        points = [[0, 0],
+                  [0, 0],
+                  [0, 0],
+                  ]#np.random.normal(size=(npts,ndim))*5.0        
         
-        points = np.random.normal(size=(npts,ndim))*5.0
-        C = np.random.uniform(-5,5,npts)
-        reduce_C_func = np.median
+        h1 = z2.histogram(points)
+        self.assertTrue(h1.values[0] == 3)
         
-        h1 = a2.histogram(points, C, reduce_C_func)
-        
-        keys = [(-2, 7, -5), (1, 1, -2), (-2, 2, 0), (5, -5, 0)]
-        values = [-3.9035621459654912, 0.44708332477382084, 2.4869740938355474, -4.0581539549289003]
-        
-        self.assertEqual(keys, h1.keys(),"quantized points are not equal from histogram")
-        self.assertEqual(values, h1.values(),"quantized values are not equal from histogram")
+        #self.assertEqual(keys, h1.keys(),"quantized points are not equal from histogram")
+        #self.assertEqual(values, h1.values(),"quantized values are not equal from histogram")
                 
     def test_composite_lattice (self):
         lattices = [ALattice(2),
