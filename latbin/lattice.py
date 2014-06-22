@@ -85,7 +85,7 @@ class Lattice (object):
     """
     def __init__(self, ndim, origin, scale, rotation):
         """
-        The abstract lattie clasee
+        The abstract lattice class
         
         Parameters
         ----------
@@ -100,7 +100,6 @@ class Lattice (object):
             independently.
         rotation : array, shape=(ndim,ndim)
             Not currently implemented
-
         """        
         if ndim <= 0:
             raise ValueError("ndim must be > 0")
@@ -125,7 +124,7 @@ class Lattice (object):
             self.rotation = None
         else:
             self.rotation = np.asarray(rotation)
-            
+     
     def __delattr__ (self,attrib):
         """ del self.attrib ! not mutable """
         if hasattr(self, attrib):
@@ -150,7 +149,7 @@ class Lattice (object):
         """ self!=other """
         equals = self.__eq__(other)
         return not equals
-
+    
     def __setattr__ (self,attrib,value):
         """ self.attrib = value ! not mutable """
         if hasattr(self,attrib):
@@ -162,7 +161,6 @@ class Lattice (object):
     def __setitem__ (self,index,value):
         """ self[i]=value ! not mutable """
         raise TypeError("'{}' does not support item assignment".format(repr(self)))
-    
     
     def bin(self, data, bin_cols=None, bin_prefix="q"):
         """bin a set of points into the Voronoi cells of this lattice
@@ -263,6 +261,16 @@ class Lattice (object):
             data_coords = self.scale*lattice_coords+self.origin
         
         return data_coords        
+    
+    def minimal_vectors(self):
+        """return a complete list of minimal norm of the vectors
+        with minimal non-zero norm in the lattice.
+        """
+        raise NotImplementedError("Not implemented for this Lattice type.")
+    
+    @property
+    def norm(self):
+        raise NotImplementedError("Not implemented for this Lattice type")
     
     def quantize(self, points):
         """Takes points in the data space and quantizes to this lattice. 
@@ -441,7 +449,6 @@ class ZLattice (Lattice):
     """    
     def __init__ (self, ndim, origin=None, scale=None, rotation=None):
         Lattice.__init__(self, ndim, origin, scale, rotation)
-        self.minimal_norm = 1.0
     
     __init__.__doc__ = Lattice.__init__.__doc__
 
@@ -449,6 +456,18 @@ class ZLattice (Lattice):
         return self.lattice_to_data_space(representations)
     
     representation_to_centers.__doc__ = Lattice.representation_to_centers.__doc__
+    
+    def minimal_vectors(self):
+        out_vecs = np.empty((2*self.ndim, self.ndim), dtype=int)
+        out_vecs[:self.ndim] = np.eye(self.ndim)
+        out_vecs[self.ndim:] = -np.eye(self.ndim)
+        return out_vecs
+    
+    minimal_vectors.__doc__ = Lattice.minimal_vectors.__doc__
+    
+    @property
+    def norm(self):
+        return 1.0
     
     def quantize (self,points):
         lspace_pts = self.data_to_lattice_space(points)
@@ -458,14 +477,34 @@ class ZLattice (Lattice):
 
 class DLattice (Lattice):
     """ The D lattice consists of integer coordinates with an even sum.
-    
     """
-
+    
     def __init__ (self, ndim, origin=None, scale=None, rotation=None):
         Lattice.__init__(self, ndim, origin, scale, rotation)
-        self.minimal_norm = np.sqrt(2)
     
     __init__.__doc__ = Lattice.__init__.__doc__
+    
+    def minimal_vectors(self):
+        out_vecs = []
+        for i in range(self.ndim):
+            for j in range(i, self.ndim):
+                cvec = np.zeros(self.ndim, dtype=int)
+                cvec[i] += 1
+                cvec[j] += 1
+                out_vecs.append(cvec)
+                out_vecs.append(-cvec)
+                if not i == j:
+                    ncvec = cvec.copy()
+                    ncvec[i] = -1
+                    out_vecs.append(ncvec)
+                    out_vecs.append(-ncvec)
+        return np.array(out_vecs)
+    
+    minimal_vectors.__doc__ = Lattice.minimal_vectors.__doc__
+    
+    @property
+    def norm(self):
+        return np.sqrt(2.0)
     
     def quantize(self, points):
         lspace_pts = self.data_to_lattice_space(points)
@@ -499,39 +538,45 @@ class ALattice (Lattice):
     """
     def __init__ (self, ndim, origin=None, scale=None, rotation=None):
         Lattice.__init__(self, ndim, origin, scale, rotation)
+        #set up a rotation matrix into the lattice coordinate space
         rot = np.zeros((ndim, ndim+1))
         for dim_idx in range(ndim):
             rot[dim_idx, :dim_idx+1] = 1
             rot[dim_idx, dim_idx+1] = -(dim_idx + 1)
         self._rot = rot/np.sqrt(np.sum(rot**2, axis=-1)).reshape((-1, 1))
-        #self._rot[:-1] = np.eye(ndim)
-        #self._rot[1:] -= np.eye(ndim)
-        #self._rot = self._rot.transpose()
         self._rot_inv = np.linalg.pinv(self._rot)
-
+    
     __init__.__doc__ = Lattice.__init__.__doc__
     
     def data_to_lattice_space(self, points):
-        #import pdb; pdb.set_trace()
         points = super(ALattice, self).data_to_lattice_space(points)
-        #npoints, ndims = points.shape
-        #neg_psum = -np.sum(points, axis=-1)
-        #lat_points = np.hstack((points, neg_psum))#np.zeros((npoints, 1))))
-        #lat_points -= psum.reshape((-1, 1))
         return np.dot(points, self._rot)
     
     data_to_lattice_space.__doc__ = Lattice.data_to_lattice_space.__doc__
     
     def lattice_to_data_space(self, points):
-        #print("points", points)
-        #neg_psum = points[:, -1]
-        #ndim = points.shape[-1]
-        #unsummed = points[:, :-1] - neg_psum.reshape((-1, 1))
-        #import pdb; pdb.set_trace()
         unrot = np.dot(points, self._rot_inv)
         return super(ALattice, self).lattice_to_data_space(unrot)
-
+    
     lattice_to_data_space.__doc__ = Lattice.lattice_to_data_space.__doc__
+    
+    def minimal_vectors(self, space="lattice"):
+        out_vecs = np.zeros((self.ndim*(self.ndim+1), self.ndim+1), dtype=int)
+        out_idx = 0
+        for i in range(self.ndim+1):
+            for j in range(self.ndim+1):
+                if i == j:
+                    continue
+                out_vecs[out_idx, i] = 1
+                out_vecs[out_idx, j] = -1
+                out_idx +=1
+        return out_vecs
+    
+    minimal_vectors.__doc__ = Lattice.minimal_vectors.__doc__
+    
+    @property
+    def norm(self):
+        return np.sqrt(2)
     
     def quantize(self, points):
         # take points to lattice space
@@ -560,10 +605,10 @@ class ALattice (Lattice):
         return quantized_repr
       
     quantize.__doc__ = Lattice.quantize.__doc__
-                    
+    
     def representation_to_centers(self, representations):
         return self.lattice_to_data_space(representations)
-
+    
     representation_to_centers.__doc__ = Lattice.representation_to_centers.__doc__
 
 lattice_types = {'z':ZLattice,
