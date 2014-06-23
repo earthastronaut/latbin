@@ -1,4 +1,5 @@
 import numpy as np
+import scipy.sparse
 import pandas as pd
 from lattice import *
 
@@ -56,7 +57,11 @@ def match(data1, data2, tolerance=0, cols=None):
     if tolerance <= 0:
         raise NotImplementedError()
     
-    scale = tolerance*2.0
+    if nmatch_cols <= 2:
+        scale_ratio = 2.0
+    else:
+        scale_ratio = 4.0
+    scale = tolerance*scale_ratio
     qlat = ALattice(nmatch_cols, scale=scale)
     
     switched = False
@@ -108,123 +113,44 @@ def match(data1, data2, tolerance=0, cols=None):
         idxs_1 = idxs_2
         idxs_2 = temp
     
+    idxs_1 = np.asarray(idxs_1)
+    idxs_2 = np.asarray(idxs_2)
+    distances = np.asarray(distances)
+    
     return idxs_1, idxs_2, distances
 
-def get_matches(data, tolerances, match_type = "max"):
-    """
-    Finds all the matching rows within the array data
+
+def sparse_distance_matrix(data, data2=None, max_dist=1.0, rbf=None, cols=None):
+    """matches the rows of input data against themselves and generates a
+    sparse n_rows by n_rows matrix with entries at i, j if and only if 
+    np.sum((data[i]-data[j])**2) < max_dist**2 
+    the entries are determined by the rbf function provided. 
     
-    This uses dictionaries and rounding to create a lattice by with to find 
-    matches. This algorithm works best for sparse sets where there are not 
-    expected to be many matches. 
     
-    Parameters
+    parameters
     ----------
-    data : numpy.array with shape (N_observations, N_data_columns)
-        This array has every observation as a row and each of the 
-        parameters (which to match by) in the columns
-    tolerances : numpy.array with shape (N_data_columns,)
-        This array has the tolerances by with to match the parameter columns
-    match_type : "max" or float
-        if "max" the tolerances are interpreted as the maximum
-        allowed differences between two rows in data to be counted as a match.
-
-        if match_type is a floating point number it will be interpreted as the 
-        order of the norm to use. e.g. if match_type is a number then two data rows 
-        x and y will be considered a match if sum((x-y)**match_type) <= 1    
-        
-    Returns
-    -------
-    matches : list 
-        This returns a list where all the values are tuples giving matches for
-        indices (e.g. matches[0] = (i,j) where data[i] == data[j] within the 
-        tolerances)
-    
-    Raises
-    ------
-    ValueError : If the tolerances.shape[0] != data.shape[1]
-    
-    
-    Notes
-    -----
-    __1)__ This algorithm approaches O(N) if the matches have tolerances == 0
-        because it uses the dictionary hashable type and approaches O(N**2) 
-        if everything is found to be matches because it does a O(N**2) 
-        operation to check all the possible matches
-    __2)__ Matches are strictly less than in all dimensions
-    
-    Examples
-    --------
-    >>> data = np.array([[1.2, 2.3, 3.4],
-                         [1.3, 4.3, 2.3],
-                         [2.3, 2.3, 4.2],
-                         [1.3, 2.1, 3.3]])
-    >>> tolerances = np.array([0.11,0.3,0.11])
-    >>> matches = get_matches(data,tolerances)
-    >>> matches
-    [(0, 3)]
-    
-    
-    
-    Modification History
-    --------------------
-    1, July 2013 : Tim Anderton
-    20, July 2013 : Dylan Gregersen
-        - modified doc string
-    
+    data: numpy.ndarray or pandas.DataFrame
+      the data array (n_points, n_dimensions). 
+    data2: numpy.ndarray or pandas.DataFrame
+      an optional second data array to match against and measure distance to.
+      if not specified then the rows in data are matched against themselves.
+    max_dist: float
+      pairs of points with distances greater than this will have zero entries
+      in the resulting sparse matrix
+    rbf: function
+      a function to take a vector of distances to a vector of matrix entries.
+      defaults to exp(-distance**2)
+    cols: see latbin.matching.match documentation for more info 
     """
-    _n_data, n_dim = data.shape
+    if data2 is None:
+        data2 = data
+    if rbf is None:
+        rbf = lambda x: np.exp(-x**2)
+    idxs_1, idxs_2, distances = match(data, data2, tolerance=max_dist, cols=cols)
+    entries = rbf(distances)
+    n1 = len(data)
+    n2 = len(data2)
+    coomat = scipy.sparse.coo_matrix((entries, (idxs_1, idxs_2)), shape=(n1, n2))
     
-    n_dicts = 2**n_dim
-    rounding_vecs = np.zeros((n_dicts, n_dim))
-
-    for i in range(2**n_dim):
-        binrep = bin(i)[2:]
-        binrep = (n_dim-len(binrep))*"0" + binrep
-        for j in range(n_dim):
-            if binrep[j] == "1":
-                rounding_vecs[i, j] = 1.0/3.0
-
-    #dim_pairs = list_to_pairs(np.arange(n_dim))
-    #n_dicts = len(dim_pairs) + n_dim + 1
-    #for i in range(n_dim):
-    #    rounding_vecs[i, i] = 1.0/3.0
-    #for pidx in range(len(dim_pairs)):
-    #    fidx, sidx = dim_pairs[pidx]
-    #    rounding_vecs[pidx + n_dim, fidx] = 1.0/3.0
-    #    rounding_vecs[pidx + n_dim, sidx] = 1.0/3.0
-        
-    match_dicts = [{} for i in range(n_dicts)]
+    return coomat
     
-    for data_idx in xrange(len(data)):
-        for dict_idx in xrange(n_dicts):
-            toround = data[data_idx]/(3.0*tolerances) + rounding_vecs[dict_idx]
-            #toround = (data[data_idx]+rounding_vecs[dict_idx])/(3.0*tolerances)
-            ctup = tuple(np.around(toround))
-            match_dicts[dict_idx].setdefault(ctup,[]).append(data_idx)
-         
-    matches = set([])    
-    for cdict in match_dicts:
-        for value in cdict.values():
-            if len(value) > 1:
-                all_pairs = list_to_pairs(value)
-                for pair in all_pairs:
-                    matches.add(pair)
-    
-    #double check the matches
-    normed_dat = data/(np.array(tolerances))
-    checked_matches = []
-    
-    if match_type == "max":
-        norm_func = lambda x: np.max(np.abs(x))
-    else:
-        match_type = float(match_type)
-        norm_func = lambda x: np.sum(np.power(x, match_type))     
-    
-    for match in matches:
-        fidx, sidx = match
-        diff = normed_dat[fidx] - normed_dat[sidx]
-        if norm_func(diff) <= 1.0:
-            checked_matches.append(match)
-    
-    return checked_matches
