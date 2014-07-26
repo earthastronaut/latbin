@@ -16,11 +16,12 @@ import latbin.matching as matching
 class TestMatch (unittest.TestCase):
     
     def setUp(self):
-        npts = 100
-        ndim = 2
-        self.match_dist = 0.1
-        self.d1 = np.random.random((npts, ndim))
-        self.d2 = np.random.random((npts, ndim))
+        npts1 = 1000
+        npts2 = 1000
+        ndim = 3
+        self.match_dist = 0.075
+        self.d1 = np.random.random((npts1, ndim))
+        self.d2 = np.random.random((npts2, ndim))
     
     def test_match(self):
         print "beginning match algorithm"
@@ -28,6 +29,7 @@ class TestMatch (unittest.TestCase):
         match_res = matching.match(self.d1, self.d2, self.match_dist)
         etime = time.time()
         print "match algorithm finished in {} seconds".format(etime-stime)
+        print "{} matches found".format(len(match_res[0]))
         
         print "beginning brute match algorithm"
         stime = time.time()

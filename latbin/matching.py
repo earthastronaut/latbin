@@ -60,7 +60,7 @@ def match(data1, data2, tolerance=0, cols=None):
     if nmatch_cols <= 2:
         scale_ratio = 2.0
     else:
-        scale_ratio = 4.0
+        scale_ratio = 5.0
     scale = tolerance*scale_ratio
     qlat = ALattice(nmatch_cols, scale=scale)
     
@@ -151,6 +151,5 @@ def sparse_distance_matrix(data, data2=None, max_dist=1.0, rbf=None, cols=None):
     n1 = len(data)
     n2 = len(data2)
     coomat = scipy.sparse.coo_matrix((entries, (idxs_1, idxs_2)), shape=(n1, n2))
-    
     return coomat
     
