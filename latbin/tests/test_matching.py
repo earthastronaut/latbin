@@ -24,18 +24,18 @@ class TestMatch (unittest.TestCase):
         self.d2 = np.random.random((npts2, ndim))
     
     def test_match(self):
-        print "beginning match algorithm"
+        print("match algorithm finished in {} seconds".format(etime-stime))
         stime = time.time()
         match_res = matching.match(self.d1, self.d2, self.match_dist)
         etime = time.time()
-        print "match algorithm finished in {} seconds".format(etime-stime)
-        print "{} matches found".format(len(match_res[0]))
+        print("match algorithm finished in {} seconds".format(etime-stime))
+        print("{} matches found".format(len(match_res[0])))
         
-        print "beginning brute match algorithm"
+        print("beginning brute match algorithm")
         stime = time.time()
         brute_res = matching.brute_match(self.d1, self.d2, self.match_dist)
         etime = time.time()
-        print "brute match finished in {} seconds".format(etime-stime)
+        print("brute match finished in {} seconds".format(etime-stime))
         
         brute_matches = set(zip(brute_res[0], brute_res[1]))
         match_matches = set(zip(match_res[0], match_res[1]))
