@@ -11,6 +11,7 @@ import cPickle
 # 3rd Party
 import numpy as np
 import pandas as pd
+import pandas.core
 #vector quantization
 import scipy.cluster.vq as vq
 
@@ -225,82 +226,193 @@ class Lattice (object):
         """
         raise NotImplementedError("Lattice isn't meant to be used this way see the generate_lattice helper function")
 
-    def histogram (self, points,C=None,reduce_C_func=np.mean,norm=False,
-                   indices=False):
-        """Histogram a set of points onto a lattice
-        
-        This uses the `quantize` method to map the data points onto lattice
-        coordinates. The mapped data points are gathered up based on the 
-        the lattice coordinate representations.
-        
-        Parameters
-        ----------
-        points : ndarray, shape=(M,N)
-            The length of the second dimension must match self.ndim
-        C : ndarray, shape=(M,)
-            The values to bin up, if `None` then the value is the point density
-        reduce_C_func : callable, one argument
-            Pass the values of C for a given bin into this function,
-            reduce_C_func(C[idx]) where idx are those elements within a 
-            particular bin
-        indices : boolean
-            If True then the values returned are a list of the point index which
-            fall in a particular bin
-        
-        Returns
-        -------
-        point_info : `latbin.PointInformation`
-            
-        """
-        pi = PointInformation(self)
-        quantized = [tuple(latpt) for latpt in self.quantize(points)]
-        if C is None and not indices: # for density
-            for latpt in quantized:
-                pi[latpt] = pi.get(latpt,0) + 1
-            if norm:  
-                s = len(points)
-                for k in pi:
-                    pi[k] = pi[k]/s
-                #pi /= len(points)           
-        else: # for extra dimensional value
-            # collect up all the indices 
-            collected = {}
-            for i,latpt in enumerate(quantized):
-                collected.setdefault(latpt,[]).append(i)
-            # if you want the indices then return them
-            if indices:
-                for latpt in quantized:
-                    pi[latpt] = collected[latpt]
-                return pi
-            # take the indicies and perform an operation
-            c = np.asarray(C)
-            for latpt in quantized:
-                pi[latpt] = reduce_C_func(c[collected[latpt]])
-        return pi
+#     def histogram (self, points,C=None,reduce_C_func=np.mean,norm=False,
+#                    indices=False):
+#         """Histogram a set of points onto a lattice
+#          
+#         This uses the `quantize` method to map the data points onto lattice
+#         coordinates. The mapped data points are gathered up based on the 
+#         the lattice coordinate representations.
+#          
+#         Parameters
+#         ----------
+#         points : ndarray, shape=(M,N)
+#             The length of the second dimension must match self.ndim
+#         C : ndarray, shape=(M,)
+#             The values to bin up, if `None` then the value is the point density
+#         reduce_C_func : callable, one argument
+#             Pass the values of C for a given bin into this function,
+#             reduce_C_func(C[idx]) where idx are those elements within a 
+#             particular bin
+#         indices : boolean
+#             If True then the values returned are a list of the point index which
+#             fall in a particular bin
+#          
+#         Returns
+#         -------
+#         point_info : `latbin.PointInformation`
+#              
+#         """
+#         pi = PointInformation(self)
+#         quantized = [tuple(latpt) for latpt in self.quantize(points)]
+#         if C is None and not indices: # for density
+#             for latpt in quantized:
+#                 pi[latpt] = pi.get(latpt,0) + 1
+#             if norm:  
+#                 s = len(points)
+#                 for k in pi:
+#                     pi[k] = pi[k]/s
+#                 #pi /= len(points)           
+#         else: # for extra dimensional value
+#             # collect up all the indices 
+#             collected = {}
+#             for i,latpt in enumerate(quantized):
+#                 collected.setdefault(latpt,[]).append(i)
+#             # if you want the indices then return them
+#             if indices:
+#                 for latpt in quantized:
+#                     pi[latpt] = collected[latpt]
+#                 return pi
+#             # take the indicies and perform an operation
+#             c = np.asarray(C)
+#             for latpt in quantized:
+#                 pi[latpt] = reduce_C_func(c[collected[latpt]])
+#         return pi
 
     def save (self,filepath,clobber=True):
         save_lattice(filepath,clobber)
     
     save.__doc__ = save_lattice.__doc__
         
-    def histogram (self, data, bin_cols=None, bin_prefix="q"):
+    def group (self, data, bin_cols=None, bin_prefix="q", extra_cols=None):
+        """ Takes the data and bins it onto the lattice
+        
+        Parameters
+        ----------
+        data : 
+        extra_cols : ndarray or dictionary of ndarray
+        
+        Returns
+        -------
+        grouped : `pandas.core.groupby.GroupBy`
+            This groups the data together. Two attributes are added:
+            * lattice : this lattice class
+            * bin_cols : columns used for binning
+        
+        Raises
+        ------
+        ValueError : len(bin_cols) not equal to the dimension of this lattice
+                
+        Notes
+        -----
+        
+        
+        Examples
+        --------
+        
+        
+        """  
+        # pass data to pandas data frame
         if not isinstance(data, pd.DataFrame):
             data = pd.DataFrame(data)
+        # add extra columns  
+        if extra_cols is None:
+            extra_columns = None              
+        elif isinstance(extra_cols,np.ndarray):
+            extra_columns = pd.DataFrame({data.shape[-1]:extra_cols})         
+        else:
+            extra_columns = pd.DataFrame(extra_cols)        
+        # get columns to bin with
         if bin_cols == None:
             bin_cols = data.columns[:self.ndim]
+        # number of bin columns must equal dimension
         if len(bin_cols) != self.ndim:
             raise ValueError("bin_cols isn't long enough")
         #quantize
         q_pts = self.quantize(data[bin_cols].values)
         # make the quantized result a pandas data frame
         q_dict = {}
-        for q_col_idx in range(q_pts.shape[1]):
-            q_dict["%s_%d" % (bin_prefix, q_col_idx)] = q_pts[:, q_col_idx]
+        for q_col_idx in xrange(q_pts.shape[1]):
+            q_dict["%s_%d" % (bin_prefix, q_col_idx)] = q_pts[:, q_col_idx]                
+        # create a data frame from the quantized data        
         q_df = pd.DataFrame(data=q_dict, index=data.index)
-        joint_df = pd.concat([data, q_df], axis=1)
+        # join all useful data together
+        if extra_columns is None:
+            joint_df = pd.concat([data, q_df,], axis=1)
+        else:
+            joint_df = pd.concat([data, extra_columns, q_df,], axis=1)
+        # create group by       
         grouped_df = joint_df.groupby(by=q_dict.keys())
+        grouped_df.lattice = self
+        grouped_df.bin_cols = bin_cols
+        # return group by object
         return grouped_df
     
+    def histogram (self,data,bin_cols=None,normed=False,index_by='mean'):
+        """ calculate the frequency of points
+        
+        For each lattice point take the data and determine the number of 
+        data points which are quantized to it.
+                
+        Parameters
+        ----------
+        data : ndarray, shape=(npts,ndim) or `pandas.core.groupby.DataFrameGroupBy`
+            This optionally takes the `pandas.core.groupby.DataFrameGroupBy` object
+            returned by self.group(...). Otherwise, it uses the arguments to
+            call self.group(data,bin_cols) and then operate on the resulting object
+        bin_cols : array of strings
+            Columns of data to use for binning. 
+        normed : boolean
+            If true then the values in the returned object are normalized to 
+            total density of 1
+        index_by : string
+            Specifies what the resulting `pandas.DataFrame` is indexed by. 
+            Options are :
+            * mean : take the mean value for the data center of the binned data
+            in each bin. This is default because it'll be most representative of
+            your data's center.
+            * centers : the centers in data space of the lattice points
+            * lattice : the centers in lattice space of the lattice points
+        
+        Returns
+        -------
+        binned_data : `pandas.Series`
+            Single column with number in each bin, indexing based on `index_by`
+        
+        """
+        # check input and get groupby object
+        if isinstance(data,pandas.core.groupby.DataFrameGroupBy):
+            # TODO: if hasattr(groupby,'lattice') check lattice?
+            groupby = data 
+        else:
+            groupby = self.group(data, bin_cols)         
+
+        # get the size of each bin                
+        hist = groupby.size()
+        
+        # if you want it normalized, then do that
+        if normed:
+            values = hist.values.astype(float)
+            total = np.sum(hist.values)
+            values /= total
+        else:
+            values = hist.values    
+        
+        # determine which indexing and return the object                                
+        if index_by == "centers":
+            index = self.lattice_to_data_space(hist.index.values)
+            return pd.Series(values,index=[tuple(i) for i in index])
+        elif index_by == "mean":            
+            if bin_cols is not None:
+                index = groupby.mean()[bin_cols].values
+            else:
+                index = groupby.mean().values 
+            if index.ndim != self.ndim:
+                raise ValueError("bin_cols must be correct ones for the mean")            
+            return pd.Series(values,index=[tuple(i) for i in index])
+        else:
+            return pd.Series(values,index=hist.index)       
+
     def __eq__ (self,other):
         """ self==other """
         if not type(other) == type(self):
