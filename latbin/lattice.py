@@ -18,7 +18,7 @@ import scipy.cluster.vq as vq
 # Internal
 from .point_information import PointInformation
 
-__all__ = ["Lattice","ZLattice","DLattice","ALattice", "PointSet",
+__all__ = ["Lattice","ZLattice","DLattice","ALattice", "PointCloud",
            "generate_lattice","CompositeLattice","load_lattice","save_lattice"]
 
 # ########################################################################### #
@@ -86,7 +86,7 @@ class Lattice (object):
     """
     def __init__(self, ndim, origin, scale, rotation):
         """
-        The abstract lattie clasee
+        The abstract lattice class
         
         Parameters
         ----------
@@ -101,7 +101,6 @@ class Lattice (object):
             independently.
         rotation : array, shape=(ndim,ndim)
             Not currently implemented
-
         """        
         if ndim <= 0:
             raise ValueError("ndim must be > 0")
@@ -125,34 +124,84 @@ class Lattice (object):
         if rotation is None:
             self.rotation = None
         else:
-            self.rotation = np.asarray(rotation)  
+            self.rotation = np.asarray(rotation)
+     
+    def __delattr__ (self,attrib):
+        """ del self.attrib ! not mutable """
+        if hasattr(self, attrib):
+            msg = "'{}' attribute is immutable in '{}'".format(attrib,repr(self))
+        else:
+            msg = "'{}' not an attribute of '{}'".format(attrib,repr(self))
+        raise AttributeError(msg)  
     
-    def lattice_to_data_space (self, lattice_coords):
-        """Transforms from the internal lattice coordinates to the original 
-        data coordinates.
+    def __eq__ (self,other):
+        """ self==other """
+        if not type(other) == type(self):
+            return False
+        if other.ndim != self.ndim:
+            return False
+        if np.all(other.origin != self.origin):
+            return False
+        if np.all(other.scale != self.scale):
+            return False
+        return True
+    
+    def __ne__ (self,other):
+        """ self!=other """
+        equals = self.__eq__(other)
+        return not equals
+    
+    def __setattr__ (self,attrib,value):
+        """ self.attrib = value ! not mutable """
+        if hasattr(self,attrib):
+            msg = "'{}' attribute is immutable in '{}'".format(attrib,repr(self))
+            raise AttributeError(msg)
+        else:
+            object.__setattr__(self,attrib,value)
+    
+    def __setitem__ (self,index,value):
+        """ self[i]=value ! not mutable """
+        raise TypeError("'{}' does not support item assignment".format(repr(self)))
+    
+    def bin(self, data, bin_cols=None, bin_prefix="q"):
+        """bin a set of points into the Voronoi cells of this lattice
         
-        The internal representations of a particular lattice can have multiple
-        representations. We've pick a particular one for this lattice and this
-        function maps from those coordinates to your data space  
+        This uses the `quantize` method to map the data points onto lattice
+        coordinates. The mapped data points are gathered up based on the 
+        the lattice coordinate representations.
         
         Parameters
         ----------
-        lattice_coords: ndarray, shape = (n_points, n_dims)  or (n_dims,)
-        
+        data : ndarray, shape=(M,N)
+            the data to bin 
+            the length of the second dimension must match self.ndim
+        bin_cols : list
+            the indexes of the columns to be used in order to bin the data
+        bin_prefix: string
+            prefix for the lattice quantization columns used to bin on.
+            
+        Returns
+        -------
+        bin_nums: pandas.groupby
+            
         """
-        lattice_coords = np.asarray(lattice_coords)
-        
-        if lattice_coords.shape[-1] != self.ndim:
-            raise ValueError("lattice_coords must be ndim={}".format(self.ndim))
-        
-        if lattice_coords.ndim == 1:
-            lc = lattice_coords.reshape((1,)+lattice_coords.shape)
-            data_coords = self.scale*lc+self.origin
-        else:
-            data_coords = self.scale*lattice_coords+self.origin
-        
-        return data_coords        
-     
+        if not isinstance(data, pd.DataFrame):
+            data = pd.DataFrame(np.asarray(data))
+        if bin_cols == None:
+            bin_cols = data.columns[:self.ndim]
+        if len(bin_cols) != self.ndim:
+            raise ValueError("bin_cols isn't long enough")
+        #quantize
+        q_pts = self.quantize(data[bin_cols].values)
+        # make the quantized result a pandas data frame
+        q_dict = {}
+        for q_col_idx in range(q_pts.shape[1]):
+            q_dict["%s_%d" % (bin_prefix, q_col_idx)] = q_pts[:, q_col_idx]
+        q_df = pd.DataFrame(data=q_dict, index=data.index)
+        joint_df = pd.concat([data, q_df], axis=1)
+        grouped_df = joint_df.groupby(by=q_dict.keys())
+        return grouped_df
+    
     def data_to_lattice_space (self,data_coords):
         """Transforms from the data coordinates to the internal lattice coordinates
         
@@ -184,7 +233,46 @@ class Lattice (object):
             lattice_coords = (data_coords-self.origin)/self.scale
         
         return lattice_coords        
-
+    
+    def histogram(self, *args, **kwargs):
+        return self.bin(*args, **kwargs).size()
+    
+    def lattice_to_data_space (self, lattice_coords):
+        """Transforms from the internal lattice coordinates to the original 
+        data coordinates.
+        
+        The internal representations of a particular lattice can have multiple
+        representations. We've pick a particular one for this lattice and this
+        function maps from those coordinates to your data space  
+        
+        Parameters
+        ----------
+        lattice_coords: ndarray, shape = (n_points, n_dims)  or (n_dims,)
+        
+        """
+        lattice_coords = np.asarray(lattice_coords)
+        
+        if lattice_coords.shape[-1] != self.ndim:
+            raise ValueError("lattice_coords must be ndim={}".format(self.ndim))
+        
+        if lattice_coords.ndim == 1:
+            lc = lattice_coords.reshape((1,)+lattice_coords.shape)
+            data_coords = self.scale*lc+self.origin
+        else:
+            data_coords = self.scale*lattice_coords+self.origin
+        
+        return data_coords        
+    
+    def minimal_vectors(self):
+        """return a complete list of minimal norm of the vectors
+        with minimal non-zero norm in the lattice.
+        """
+        raise NotImplementedError("Not implemented for this Lattice type.")
+    
+    @property
+    def norm(self):
+        raise NotImplementedError("Not implemented for this Lattice type")
+    
     def quantize(self, points):
         """Takes points in the data space and quantizes to this lattice. 
         
@@ -225,237 +313,12 @@ class Lattice (object):
         
         """
         raise NotImplementedError("Lattice isn't meant to be used this way see the generate_lattice helper function")
-
-#     def histogram (self, points,C=None,reduce_C_func=np.mean,norm=False,
-#                    indices=False):
-#         """Histogram a set of points onto a lattice
-#          
-#         This uses the `quantize` method to map the data points onto lattice
-#         coordinates. The mapped data points are gathered up based on the 
-#         the lattice coordinate representations.
-#          
-#         Parameters
-#         ----------
-#         points : ndarray, shape=(M,N)
-#             The length of the second dimension must match self.ndim
-#         C : ndarray, shape=(M,)
-#             The values to bin up, if `None` then the value is the point density
-#         reduce_C_func : callable, one argument
-#             Pass the values of C for a given bin into this function,
-#             reduce_C_func(C[idx]) where idx are those elements within a 
-#             particular bin
-#         indices : boolean
-#             If True then the values returned are a list of the point index which
-#             fall in a particular bin
-#          
-#         Returns
-#         -------
-#         point_info : `latbin.PointInformation`
-#              
-#         """
-#         pi = PointInformation(self)
-#         quantized = [tuple(latpt) for latpt in self.quantize(points)]
-#         if C is None and not indices: # for density
-#             for latpt in quantized:
-#                 pi[latpt] = pi.get(latpt,0) + 1
-#             if norm:  
-#                 s = len(points)
-#                 for k in pi:
-#                     pi[k] = pi[k]/s
-#                 #pi /= len(points)           
-#         else: # for extra dimensional value
-#             # collect up all the indices 
-#             collected = {}
-#             for i,latpt in enumerate(quantized):
-#                 collected.setdefault(latpt,[]).append(i)
-#             # if you want the indices then return them
-#             if indices:
-#                 for latpt in quantized:
-#                     pi[latpt] = collected[latpt]
-#                 return pi
-#             # take the indicies and perform an operation
-#             c = np.asarray(C)
-#             for latpt in quantized:
-#                 pi[latpt] = reduce_C_func(c[collected[latpt]])
-#         return pi
-
-    def save (self,filepath,clobber=True):
-        save_lattice(filepath,clobber)
+            
+class PointCloud (Lattice):
+    """A representation of a finite set of points. While Technically not a 
+    Lattice in the mathematical sense it implements the same API
     
-    save.__doc__ = save_lattice.__doc__
-        
-    def group (self, data, bin_cols=None, bin_prefix="q", extra_cols=None):
-        """ Takes the data and bins it onto the lattice
-        
-        Parameters
-        ----------
-        data : 
-        extra_cols : ndarray or dictionary of ndarray
-        
-        Returns
-        -------
-        grouped : `pandas.core.groupby.GroupBy`
-            This groups the data together. Two attributes are added:
-            * lattice : this lattice class
-            * bin_cols : columns used for binning
-        
-        Raises
-        ------
-        ValueError : len(bin_cols) not equal to the dimension of this lattice
-                
-        Notes
-        -----
-        
-        
-        Examples
-        --------
-        
-        
-        """  
-        # pass data to pandas data frame
-        if not isinstance(data, pd.DataFrame):
-            data = pd.DataFrame(data)
-        # add extra columns  
-        if extra_cols is None:
-            extra_columns = None              
-        elif isinstance(extra_cols,np.ndarray):
-            extra_columns = pd.DataFrame({data.shape[-1]:extra_cols})         
-        else:
-            extra_columns = pd.DataFrame(extra_cols)        
-        # get columns to bin with
-        if bin_cols == None:
-            bin_cols = data.columns[:self.ndim]
-        # number of bin columns must equal dimension
-        if len(bin_cols) != self.ndim:
-            raise ValueError("bin_cols isn't long enough")
-        #quantize
-        q_pts = self.quantize(data[bin_cols].values)
-        # make the quantized result a pandas data frame
-        q_dict = {}
-        for q_col_idx in xrange(q_pts.shape[1]):
-            q_dict["%s_%d" % (bin_prefix, q_col_idx)] = q_pts[:, q_col_idx]                
-        # create a data frame from the quantized data        
-        q_df = pd.DataFrame(data=q_dict, index=data.index)
-        # join all useful data together
-        if extra_columns is None:
-            joint_df = pd.concat([data, q_df,], axis=1)
-        else:
-            joint_df = pd.concat([data, extra_columns, q_df,], axis=1)
-        # create group by       
-        grouped_df = joint_df.groupby(by=q_dict.keys())
-        grouped_df.lattice = self
-        grouped_df.bin_cols = bin_cols
-        # return group by object
-        return grouped_df
-    
-    def histogram (self,data,bin_cols=None,normed=False,index_by='mean'):
-        """ calculate the frequency of points
-        
-        For each lattice point take the data and determine the number of 
-        data points which are quantized to it.
-                
-        Parameters
-        ----------
-        data : ndarray, shape=(npts,ndim) or `pandas.core.groupby.DataFrameGroupBy`
-            This optionally takes the `pandas.core.groupby.DataFrameGroupBy` object
-            returned by self.group(...). Otherwise, it uses the arguments to
-            call self.group(data,bin_cols) and then operate on the resulting object
-        bin_cols : array of strings
-            Columns of data to use for binning. 
-        normed : boolean
-            If true then the values in the returned object are normalized to 
-            total density of 1
-        index_by : string
-            Specifies what the resulting `pandas.DataFrame` is indexed by. 
-            Options are :
-            * mean : take the mean value for the data center of the binned data
-            in each bin. This is default because it'll be most representative of
-            your data's center.
-            * centers : the centers in data space of the lattice points
-            * lattice : the centers in lattice space of the lattice points
-        
-        Returns
-        -------
-        binned_data : `pandas.Series`
-            Single column with number in each bin, indexing based on `index_by`
-        
-        """
-        # check input and get groupby object
-        if isinstance(data,pandas.core.groupby.DataFrameGroupBy):
-            # TODO: if hasattr(groupby,'lattice') check lattice?
-            groupby = data 
-        else:
-            groupby = self.group(data, bin_cols)         
-
-        # get the size of each bin                
-        hist = groupby.size()
-        
-        # if you want it normalized, then do that
-        if normed:
-            values = hist.values.astype(float)
-            total = np.sum(hist.values)
-            values /= total
-        else:
-            values = hist.values    
-        
-        # determine which indexing and return the object                                
-        if index_by == "centers":
-            index = self.lattice_to_data_space(hist.index.values)
-            return pd.Series(values,index=[tuple(i) for i in index])
-        elif index_by == "mean":            
-            if bin_cols is not None:
-                index = groupby.mean()[bin_cols].values
-            else:
-                index = groupby.mean().values 
-            if index.ndim != self.ndim:
-                raise ValueError("bin_cols must be correct ones for the mean")            
-            return pd.Series(values,index=[tuple(i) for i in index])
-        else:
-            return pd.Series(values,index=hist.index)       
-
-    def __eq__ (self,other):
-        """ self==other """
-        if not type(other) == type(self):
-            return False
-        if other.ndim != self.ndim:
-            return False
-        if np.all(other.origin != self.origin):
-            return False
-        if np.all(other.scale != self.scale):
-            return False
-        return True
-
-    def __ne__ (self,other):
-        """ self!=other """
-        equals = self.__eq__(other)
-        return not equals
-
-    def __setitem__ (self,index,value):
-        """ self[i]=value ! not mutable """
-        raise TypeError("'{}' does not support item assignment".format(repr(self)))
-    
-    def __setattr__ (self,attrib,value):
-        """ self.attrib = value ! not mutable """
-        if hasattr(self,attrib):
-            msg = "'{}' attribute is immutable in '{}'".format(attrib,repr(self))
-            raise AttributeError(msg)
-        else:
-            object.__setattr__(self,attrib,value)
-        
-    def __delattr__ (self,attrib):
-        """ del self.attrib ! not mutable """
-        if hasattr(self, attrib):
-            msg = "'{}' attribute is immutable in '{}'".format(attrib,repr(self))
-        else:
-            msg = "'{}' not an attribute of '{}'".format(attrib,repr(self))
-        raise AttributeError(msg)
-
-class PointSet (Lattice):
-    """ Lattice composed of arbitrary lattice centers.
-    
-    In this lattice you explicitly give the lattice coordinates in the data 
-    space. The quantization is done using scipy.cluster.vq algorithm.
-    
+    The quantization is done using scipy.cluster.vq algorithm.
     """
     
     def __init__ (self, point_coordinates, force_unique=True):
@@ -556,14 +419,14 @@ class PointSet (Lattice):
         
         Raises
         ------
-        ValueError : if point is not in PointSet
+        ValueError : if point is not in PointCloud
         
         """
         check_pt = tuple(point)
         for i,pt in enumerate(self.points):
             if tuple(pt) == check_pt:
                 return i
-        raise ValueError("'{}' not in PointSet".format(pt))
+        raise ValueError("'{}' not in PointCloud".format(pt))
     
     def __eq__(self, other):
         """ self==other """
@@ -581,7 +444,6 @@ class ZLattice (Lattice):
     """    
     def __init__ (self, ndim, origin=None, scale=None, rotation=None):
         Lattice.__init__(self, ndim, origin, scale, rotation)
-        self.minimal_norm = 1.0
     
     __init__.__doc__ = Lattice.__init__.__doc__
 
@@ -589,6 +451,18 @@ class ZLattice (Lattice):
         return self.lattice_to_data_space(representations)
     
     representation_to_centers.__doc__ = Lattice.representation_to_centers.__doc__
+    
+    def minimal_vectors(self):
+        out_vecs = np.empty((2*self.ndim, self.ndim), dtype=int)
+        out_vecs[:self.ndim] = np.eye(self.ndim)
+        out_vecs[self.ndim:] = -np.eye(self.ndim)
+        return out_vecs
+    
+    minimal_vectors.__doc__ = Lattice.minimal_vectors.__doc__
+    
+    @property
+    def norm(self):
+        return 1.0
     
     def quantize (self,points):
         lspace_pts = self.data_to_lattice_space(points)
@@ -598,14 +472,34 @@ class ZLattice (Lattice):
 
 class DLattice (Lattice):
     """ The D lattice consists of integer coordinates with an even sum.
-    
     """
-
+    
     def __init__ (self, ndim, origin=None, scale=None, rotation=None):
         Lattice.__init__(self, ndim, origin, scale, rotation)
-        self.minimal_norm = np.sqrt(2)
     
     __init__.__doc__ = Lattice.__init__.__doc__
+    
+    def minimal_vectors(self):
+        out_vecs = []
+        for i in range(self.ndim):
+            for j in range(i, self.ndim):
+                cvec = np.zeros(self.ndim, dtype=int)
+                cvec[i] += 1
+                cvec[j] += 1
+                out_vecs.append(cvec)
+                out_vecs.append(-cvec)
+                if not i == j:
+                    ncvec = cvec.copy()
+                    ncvec[i] = -1
+                    out_vecs.append(ncvec)
+                    out_vecs.append(-ncvec)
+        return np.array(out_vecs)
+    
+    minimal_vectors.__doc__ = Lattice.minimal_vectors.__doc__
+    
+    @property
+    def norm(self):
+        return np.sqrt(2.0)
     
     def quantize(self, points):
         lspace_pts = self.data_to_lattice_space(points)
@@ -639,39 +533,45 @@ class ALattice (Lattice):
     """
     def __init__ (self, ndim, origin=None, scale=None, rotation=None):
         Lattice.__init__(self, ndim, origin, scale, rotation)
+        #set up a rotation matrix into the lattice coordinate space
         rot = np.zeros((ndim, ndim+1))
         for dim_idx in range(ndim):
             rot[dim_idx, :dim_idx+1] = 1
             rot[dim_idx, dim_idx+1] = -(dim_idx + 1)
         self._rot = rot/np.sqrt(np.sum(rot**2, axis=-1)).reshape((-1, 1))
-        #self._rot[:-1] = np.eye(ndim)
-        #self._rot[1:] -= np.eye(ndim)
-        #self._rot = self._rot.transpose()
         self._rot_inv = np.linalg.pinv(self._rot)
-
+    
     __init__.__doc__ = Lattice.__init__.__doc__
     
     def data_to_lattice_space(self, points):
-        #import pdb; pdb.set_trace()
         points = super(ALattice, self).data_to_lattice_space(points)
-        #npoints, ndims = points.shape
-        #neg_psum = -np.sum(points, axis=-1)
-        #lat_points = np.hstack((points, neg_psum))#np.zeros((npoints, 1))))
-        #lat_points -= psum.reshape((-1, 1))
         return np.dot(points, self._rot)
     
     data_to_lattice_space.__doc__ = Lattice.data_to_lattice_space.__doc__
     
     def lattice_to_data_space(self, points):
-        #print("points", points)
-        #neg_psum = points[:, -1]
-        #ndim = points.shape[-1]
-        #unsummed = points[:, :-1] - neg_psum.reshape((-1, 1))
-        #import pdb; pdb.set_trace()
         unrot = np.dot(points, self._rot_inv)
         return super(ALattice, self).lattice_to_data_space(unrot)
-
+    
     lattice_to_data_space.__doc__ = Lattice.lattice_to_data_space.__doc__
+    
+    def minimal_vectors(self, space="lattice"):
+        out_vecs = np.zeros((self.ndim*(self.ndim+1), self.ndim+1), dtype=int)
+        out_idx = 0
+        for i in range(self.ndim+1):
+            for j in range(self.ndim+1):
+                if i == j:
+                    continue
+                out_vecs[out_idx, i] = 1
+                out_vecs[out_idx, j] = -1
+                out_idx +=1
+        return out_vecs
+    
+    minimal_vectors.__doc__ = Lattice.minimal_vectors.__doc__
+    
+    @property
+    def norm(self):
+        return np.sqrt(2)
     
     def quantize(self, points):
         # take points to lattice space
@@ -700,10 +600,10 @@ class ALattice (Lattice):
         return quantized_repr
       
     quantize.__doc__ = Lattice.quantize.__doc__
-                    
+    
     def representation_to_centers(self, representations):
         return self.lattice_to_data_space(representations)
-
+    
     representation_to_centers.__doc__ = Lattice.representation_to_centers.__doc__
 
 lattice_types = {'z':ZLattice,
@@ -858,19 +758,21 @@ class CompositeLattice (Lattice):
 
     def __eq__ (self,other):
         """ self == other """
-        equals = super(CompositeLattice, self).__eq__(other)
-        if not equals:
+        if not isinstance(other, CompositeLattice):
+            return False
+        if not len(self.lattices) == len(other.lattices):
             return False
         if self.lat_dims != other.lat_dims:
             return False
-        if self.column_idx != other.column_idx:
-            return False        
-        if len(self.lattices) != len(other.lattices):
-            return False
+        #print(self.column_idx)
+        #print(other.column_idx)
+        for ci1, ci2 in zip(self.column_idx, other.column_idx):
+            if not np.all(ci1 == ci2):
+                return False
         for i,lat in enumerate(self.lattices):
             if lat != other.lattices[i]:
                 return False 
-        return True            
+        return True          
                      
 pass
 # ########################################################################### #
@@ -947,6 +849,8 @@ def generate_lattice (ndim, origin=None, scale=None, largest_dim_errors=None,
     latclass = lattice_types[lattice_type] 
     
     # ===================== get scale
+    if scale == None:
+        scale = 1.0
     scale /= packing_radius
     largest_dim_errors # ndarray, which gives the desired largest errors in each dimension
     
