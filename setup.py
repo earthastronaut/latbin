@@ -2,7 +2,7 @@ from distutils.core import setup
 import latbin
 
 packages = ['latbin']
-requires = ['numpy','scipy']
+install_requires = ['numpy>=1.8','scipy>=0.14','pandas>=0.14']
 ext_modules = []
 
 setup(
@@ -25,5 +25,5 @@ setup(
     version=latbin.__version__,
     packages=packages,
     ext_modules=ext_modules,
-    requires=requires,
+    install_requires=install_requires,
     )
