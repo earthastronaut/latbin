@@ -24,7 +24,6 @@ class TestMatch (unittest.TestCase):
         self.d2 = np.random.random((npts2, ndim))
     
     def test_match(self):
-        print("match algorithm finished in {} seconds".format(etime-stime))
         stime = time.time()
         match_res = matching.match(self.d1, self.d2, self.match_dist)
         etime = time.time()
