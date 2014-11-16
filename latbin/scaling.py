@@ -1,8 +1,12 @@
+#!/usr/bin/env python
+# -*- coding: utf-8 -*-
 import numpy as np
 import scipy
 import pandas as pd
-from .lattice import ALattice, ZLattice, DLattice
+from latbin.lattice import ALattice, ZLattice, DLattice
 import matplotlib.pyplot as plt
+
+# ########################################################################### #
 
 def binning_entropy(data, lattice, bin_cols=None, bin_prefix="q"):
     gb = lattice.bin(data, bin_cols=bin_cols, bin_prefix=bin_prefix)

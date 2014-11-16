@@ -1,12 +1,10 @@
 # Licensed under a 3-clause BSD style license - see LICENSE
 
 # Standard Library
-from __future__ import print_function, division
 from collections import Iterable
 import re
-from copy import deepcopy
+import io 
 import os
-import cPickle
 
 # 3rd Party
 import numpy as np
@@ -16,7 +14,9 @@ import pandas.core
 import scipy.cluster.vq as vq
 
 # Internal
-from .point_information import PointInformation
+from latbin.point_information import PointInformation
+from latbin._six import isstr, pickle, range
+
 
 __all__ = ["Lattice","ZLattice","DLattice","ALattice", "PointCloud",
            "generate_lattice","CompositeLattice","load_lattice","save_lattice"]
@@ -36,7 +36,7 @@ def load_lattice (filepath):
     lattice : `latbin.Lattice` subclass
 
     """    
-    return cPickle.load(open(filepath,'r'))
+    return pickle.load(io.open(filepath,'r'))
     
 def save_lattice (lattice,filepath,clobber=True):   
     """ Save a lattice to file
@@ -59,7 +59,7 @@ def save_lattice (lattice,filepath,clobber=True):
             raise IOError("File exists '{}'".format(filepath))
     if not isinstance(lattice,Lattice):
         raise TypeError("lattice must be a Lattice subclass")
-    cPickle.dump(lattice,open(filepath,'w'))  
+    pickle.dump(lattice,io.open(filepath,'w'))  
 
 pass
 # ########################################################################### #
@@ -199,7 +199,7 @@ class Lattice (object):
             q_dict["%s_%d" % (bin_prefix, q_col_idx)] = q_pts[:, q_col_idx]
         q_df = pd.DataFrame(data=q_dict, index=data.index)
         joint_df = pd.concat([data, q_df], axis=1)
-        grouped_df = joint_df.groupby(by=q_dict.keys())
+        grouped_df = joint_df.groupby(by=list(q_dict.keys()))
         return grouped_df
     
     def data_to_lattice_space (self,data_coords):
@@ -585,16 +585,16 @@ class ALattice (Lattice):
         permutations = np.argsort(cdiff,axis=-1)
         quantized_repr = rounded_pts
         
-        for i in xrange(len(quantized_repr)):
+        for i in range(len(quantized_repr)):
             cdeff = deficiency[i]
             if cdeff == 0:
                 continue
             elif cdeff > 0:
-                for j in xrange(cdeff):
+                for j in range(cdeff):
                     perm_idx = permutations[i, j]
                     quantized_repr[i, perm_idx] -= 1
             elif cdeff < 0:
-                for j in xrange(-cdeff):
+                for j in range(-cdeff):
                     perm_idx = permutations[i, -1-j]
                     quantized_repr[i, perm_idx] += 1
         return quantized_repr
@@ -666,11 +666,10 @@ class CompositeLattice (Lattice):
         """
         
         # get lattices
-        if isinstance(lattices,basestring):
-            lattice_string = deepcopy(lattices)
+        if isstr(lattices):
             lat_dims = []
-            lattices = []
-            for latstr in lattice_string.split(","):
+            lattice_structs = []
+            for latstr in lattices.split(","):
                 search_result = re.search("([a,d,z]).*(\d)",latstr.lower())
                 if search_result is None:
                     raise ValueError("Couldn't parse lattice {} from lattices string".format(latstr))
@@ -680,20 +679,20 @@ class CompositeLattice (Lattice):
                 except ValueError:
                     raise ValueError("Must give letter then dimension")
                 lat_dims.append(lat_dim)
-                lattices.append(lattice_types[lat_type](lat_dim))
+                lattice_structs.append(lattice_types[lat_type](lat_dim))
             self.lat_dims = lat_dims
         else:
-            self.lat_dims = [lat.ndim for lat in lattices]
+            self.lat_dims = [lat.ndim for lat in lattice_structs]
             
         ndim = np.sum(self.lat_dims)        
-        self.lattices = lattices
+        self.lattices = lattice_structs
         
         # get the index mapping
         if column_idx is None:
             current_i = 0
             column_idx = []
             for ldim in self.lat_dims:
-                column_idx.append(range(current_i,current_i+ldim))
+                column_idx.append(list(range(current_i,current_i+ldim)))
                 current_i += ldim
             
         column_idx = list(column_idx)
@@ -712,7 +711,7 @@ class CompositeLattice (Lattice):
             if len(row) != self.lat_dims[i]:
                 raise ValueError("the number of indicies in column_idx[i]={} must match lattice dimension = {} ".format(len(row),self.lat_dims[i]))
             
-            used_idxs = used_idxs.union(map(int,row))
+            used_idxs = used_idxs.union(set(map(int,row)))
         
         if none_idx >= 0:
             unused_idxs = set(range(ndim)) - used_idxs
@@ -734,7 +733,7 @@ class CompositeLattice (Lattice):
     def data_to_lattice_space(self, data_coords):        
         lattice_coords_list = []
         arrays = self.map_data_to_lattice(data_coords)  
-        lat_coords_list = [self.lattices[i].data_to_lattice_space(arrays[i]) for i in xrange(len(arrays))]
+        lat_coords_list = [self.lattices[i].data_to_lattice_space(arrays[i]) for i in range(len(arrays))]
         return Lattice.data_to_lattice_space(self, data_coords)
 
     data_to_lattice_space.__doc__ = Lattice.data_to_lattice_space.__doc__
@@ -844,8 +843,8 @@ def generate_lattice (ndim, origin=None, scale=None, largest_dim_errors=None,
         else:
             lattice_type = 'a'
             
-    if not lattice_types.has_key(lattice_type):
-        raise ValueError("lattice_type must be in ({}), see NOTE1 in doc string".format(", ".join(lattice_types.keys())))
+    if lattice_type not in lattice_types:
+        raise ValueError("lattice_type must be in ({}), see NOTE1 in doc string".format(", ".join(list(lattice_types.keys()))))
     latclass = lattice_types[lattice_type] 
     
     # ===================== get scale

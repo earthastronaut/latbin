@@ -1,14 +1,14 @@
 # Licensed under a 3-clause BSD style license - see LICENSE
 
 # Standard Library
-from __future__ import print_function, division
-from copy import deepcopy
+import copy 
 
 # 3rd Party
 import numpy as np
 
 # Internal
 import latbin
+from latbin._six import iteritems
 
 # ########################################################################### #
 
@@ -30,7 +30,7 @@ class InformationDict (dict):
         dict.__setitem__(self,key,value)
  
     def copy (self):
-        return deepcopy(self)
+        return copy.deepcopy(self)
      
     pass 
     # --------------------------------------------------------------------------- #
@@ -87,7 +87,7 @@ class InformationDict (dict):
                 self[key] = operator(self[key],other)
             return self
             
-        for key,second in other.iteritems():
+        for key,second in iteritems(other):
             first = self.get(key,fill)
             self[key] = operator(first,second)            
         return self
@@ -208,7 +208,7 @@ class PointInformation (InformationDict):
             raise ValueError(("can only compare identical lattices: "
                              "'{}' != '{}'").format(repr(self.lattice),
                                                     repr(other.lattice)))        
-        for key,second in other.iteritems():
+        for key,second in iteritems(other):
             first = self.get(key,fill)
             self[key] = operator(first,second)            
         return self
@@ -223,5 +223,5 @@ class PointInformation (InformationDict):
         centers : ndarray, shape=(N,ndim)
         
         """
-        return self.lattice.lattice_to_data_space(self.keys())
+        return self.lattice.lattice_to_data_space(list(self.keys()))
         

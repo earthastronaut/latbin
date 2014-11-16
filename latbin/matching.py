@@ -1,7 +1,7 @@
 import numpy as np
 import scipy.sparse
 import pandas as pd
-from lattice import *
+from latbin.lattice import *
 
 def brute_match(data1, data2, tolerance=0):
     idxs_1, idxs_2, distances = [], [], []
