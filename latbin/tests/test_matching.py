@@ -13,12 +13,12 @@ import latbin.matching as matching
 
 # ########################################################################### #
 
-class TestMatch (unittest.TestCase):
+class TestMatch2D(unittest.TestCase):
     
     def setUp(self):
-        npts1 = 1000
-        npts2 = 1000
-        ndim = 3
+        npts1 = 100
+        npts2 = 100
+        ndim = 2
         self.match_dist = 0.075
         self.d1 = np.random.random((npts1, ndim))
         self.d2 = np.random.random((npts2, ndim))
