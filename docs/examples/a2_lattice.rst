@@ -46,6 +46,9 @@ We can then plot the result using matplotlib
     plt.scatter(centers[:,0],centers[:,1],c=h.values(), s=70)
     plt.show()
 
+.. image:: a2_lattice.png
+   :alt: Plot from a2_lattice.py
+   :align: center
 
 .. COULD do the documentation like this:
 .. .. literalinclude:: a2_lattice.py
