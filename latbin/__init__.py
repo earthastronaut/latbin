@@ -2,7 +2,7 @@
 
 __version__ = "0.1.3"
 
-from point_information import *
-from lattice import *
-import matching
-import scaling
+from latbin.point_information import *
+from latbin.lattice import *
+import latbin.matching as matching
+import latbin.scaling as scaling
