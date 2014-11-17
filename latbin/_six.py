@@ -11,15 +11,11 @@ DATE: Sun Nov 16 12:23:36 2014
 import sys 
 PY3 = sys.version[0] == "3"
 
-
 # ########################################################################### #
-if PY3:
-    # ----------------------- python 3 imports
+if PY3: # ----------------------- python 3 imports
     import pickle
-else:
-    # ----------------------- python 2 imports
+else: # ----------------------- python 2 imports    
     import cPickle as pickle
-
 
 # ########################################################################### #
 
@@ -36,8 +32,9 @@ def isstr (obj):
         return isinstance(obj,basestring)
 
 def range (*args,**kwargs):
-    """ Python 3 version of range """
     if PY3:
-        return range(*args,**kwargs)
+        import builtins
+        return builtins.range(*args,**kwargs)
     else:
-        return __builtins__.xrange(*args,**kwargs)
+        return xrange(*args,**kwargs)
+

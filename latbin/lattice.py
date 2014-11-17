@@ -681,11 +681,12 @@ class CompositeLattice (Lattice):
                 lat_dims.append(lat_dim)
                 lattice_structs.append(lattice_types[lat_type](lat_dim))
             self.lat_dims = lat_dims
+            self.lattices = lattice_structs
         else:
-            self.lat_dims = [lat.ndim for lat in lattice_structs]
-            
+            self.lat_dims = [lat.ndim for lat in lattices]
+            self.lattices = lattices 
+
         ndim = np.sum(self.lat_dims)        
-        self.lattices = lattice_structs
         
         # get the index mapping
         if column_idx is None:
