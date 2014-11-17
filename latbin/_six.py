@@ -14,8 +14,18 @@ PY3 = sys.version[0] == "3"
 # ########################################################################### #
 if PY3: # ----------------------- python 3 imports
     import pickle
+
+    import builtins
+    range = builtins.range 
+    
 else: # ----------------------- python 2 imports    
     import cPickle as pickle
+
+    # modify builtins to generator versions
+    range = xrange 
+    import itertools
+    zip = itertools.izip
+    map = itertools.imap 
 
 # ########################################################################### #
 
@@ -30,11 +40,4 @@ def isstr (obj):
         return isinstance(obj,str)
     else:
         return isinstance(obj,basestring)
-
-def range (*args,**kwargs):
-    if PY3:
-        import builtins
-        return builtins.range(*args,**kwargs)
-    else:
-        return xrange(*args,**kwargs)
 
