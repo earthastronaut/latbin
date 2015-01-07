@@ -1,9 +1,18 @@
+from copy import copy
+
 import numpy as np
 import scipy.sparse
 import pandas as pd
 from latbin.lattice import *
 
 def brute_match(data1, data2, tolerance=0):
+    """a brute force matching function.
+    Uses a slow N^2 double for loop algorithm.
+    may be faster than using the match algorithm for situations where
+    either the number of matches is a significant fraction of N^2 or
+    the number of dimensions is comparable to the number of data points
+    or for very small matching problems.
+    """
     idxs_1, idxs_2, distances = [], [], []
     for i in range(len(data1)):
         for j in range(len(data2)):
@@ -60,7 +69,7 @@ def match(data1, data2, tolerance=0, cols=None):
     if nmatch_cols <= 2:
         scale_ratio = 2.0
     else:
-        scale_ratio = 5.0
+        scale_ratio = 1.1
     scale = tolerance*scale_ratio
     qlat = ALattice(nmatch_cols, scale=scale)
     
@@ -77,7 +86,18 @@ def match(data1, data2, tolerance=0, cols=None):
     short_pts = qlat.quantize(d2vals)
     
     all_trans = [short_pts]
-    for neighbor_vec in qlat.minimal_vectors():
+    minimal_vecs = qlat.minimal_vectors()
+    shell_set = set([tuple(vec) for vec in minimal_vecs])
+    for expand_iter in range(max(0, nmatch_cols-2)):
+        last_set = copy(shell_set)
+        for lvec in last_set:
+            lvec = np.array(lvec)
+            for mvec in minimal_vecs:
+                new_vec = tuple(lvec + mvec)
+                shell_set.add(new_vec)
+    neighbor_vecs = np.array(list(shell_set))
+    
+    for neighbor_vec in neighbor_vecs:
         all_trans.append(short_pts + neighbor_vec)
     
     #make the shifted points into dictionaries
@@ -120,7 +140,7 @@ def match(data1, data2, tolerance=0, cols=None):
     return idxs_1, idxs_2, distances
 
 
-def sparse_distance_matrix(data, data2=None, max_dist=1.0, rbf=None, cols=None):
+def sparse_distance_matrix(data, data2=None, max_dist=1.0, rbf=None, cols=None,):
     """matches the rows of input data against themselves and generates a
     sparse n_rows by n_rows matrix with entries at i, j if and only if 
     np.sum((data[i]-data[j])**2) < max_dist**2 

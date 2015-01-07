@@ -13,24 +13,24 @@ import latbin.matching as matching
 
 # ########################################################################### #
 
-class TestMatch2D(unittest.TestCase):
+class TestMatch(unittest.TestCase):
+    ndim = 2
+    match_dist = 0.025
     
     def setUp(self):
-        npts1 = 100
-        npts2 = 100
-        ndim = 2
-        self.match_dist = 0.075
-        self.d1 = np.random.random((npts1, ndim))
-        self.d2 = np.random.random((npts2, ndim))
+        npts1 = 400
+        npts2 = 400
+        self.d1 = np.random.random((npts1, self.ndim))
+        self.d2 = np.random.random((npts2, self.ndim))
     
     def test_match(self):
         stime = time.time()
         match_res = matching.match(self.d1, self.d2, self.match_dist)
         etime = time.time()
-        print("match algorithm finished in {} seconds".format(etime-stime))
-        print("{} matches found".format(len(match_res[0])))
+        print("beginning matching algorithm")
+        print("{} matches found in {} seconds".format(len(match_res[0]), etime-stime))
         
-        print("beginning brute match algorithm")
+        print("beginning brute matching algorithm")
         stime = time.time()
         brute_res = matching.brute_match(self.d1, self.d2, self.match_dist)
         etime = time.time()
@@ -46,7 +46,23 @@ class TestMatch2D(unittest.TestCase):
         
         missed = brute_matches-match_matches
         self.assertTrue(missed == set(), "missed {} out of {} valid matches".format(len(missed), nmatches))
-        
+
+class TestMatch3D(TestMatch):
+    ndim = 3
+    match_dist = 0.05
+
+class TestMatch4D(TestMatch):
+    ndim = 4
+    match_dist = 0.07
+
+class TestMatch5D(TestMatch):
+    ndim = 5
+    match_dist = 0.1
+
+class TestMatch6D(TestMatch):
+    ndim = 6
+    match_dist = 0.15
+
 
 if __name__ == "__main__":
     unittest.main()
