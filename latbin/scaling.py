@@ -8,6 +8,39 @@ import matplotlib.pyplot as plt
 
 # ########################################################################### #
 
+def brute_pair_distances(data):
+    npts = len(data)
+    distances = np.zeros(npts*(npts-1)/2)
+    indexes = np.zeros(npts*(npts-1)/2, dtype=int)
+    cur_idx = 0
+    for i in range(len(data)):
+        for j in range(i, len(data)):
+            diff = data[i]-data[j]
+            distances[cur_idx] = np.sum(diff*2)
+            indexes[cur_idx] = i, j
+            cur_idx +=1
+    distances = np.sqrt(distances)
+    return indexes, distances
+
+
+def sampled_pair_distances(data, lattice=None, n_samples=1000):
+    distances = np.zeros(n_samples)
+    indexes = np.zeros((n_samples, 2), dtype=int)
+    if n_samples >= len(data)**2:
+        return brute_pair_distances(data)
+    npts = len(data)
+    for sample_idx in range(n_samples):
+        idx1 = np.random.randint(npts)
+        idx2 = np.random.randint(npts)
+        while(idx1 == idx2):
+            idx2 = np.random.randint(npts)
+        diff = data[idx1] - data[idx2]
+        distances[sample_idx] = np.sum(diff**2)
+        indexes[sample_idx] = idx1, idx2
+    distances = np.sqrt(distances)
+    return indexes, distances
+
+
 def binning_entropy(data, lattice, bin_cols=None, bin_prefix="q"):
     gb = lattice.bin(data, bin_cols=bin_cols, bin_prefix=bin_prefix)
     #shannon information == -sum(p*ln(p))
@@ -15,6 +48,7 @@ def binning_entropy(data, lattice, bin_cols=None, bin_prefix="q"):
     probs = gb.size()/float(n)
     entropy = -np.sum(probs*np.log2(probs))
     return entropy
+
 
 def binning_mutual_information(data, x_cols, y_cols, x_scale, y_scale, lattice_factory=None):
     if lattice_factory is None:
