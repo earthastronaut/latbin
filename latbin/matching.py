@@ -66,12 +66,7 @@ def match(data1, data2, tolerance=0, cols=None):
     if tolerance <= 0:
         raise NotImplementedError()
     
-    if nmatch_cols <= 2:
-        scale_ratio = 2.0
-    else:
-        scale_ratio = 1.1
-    scale = tolerance*scale_ratio
-    qlat = ALattice(nmatch_cols, scale=scale)
+    qlat = ALattice(nmatch_cols, scale=tolerance)
     
     switched = False
     if len(data2) > len(data1):
@@ -93,9 +88,14 @@ def match(data1, data2, tolerance=0, cols=None):
         for lvec in last_set:
             lvec = np.array(lvec)
             for mvec in minimal_vecs:
-                new_vec = tuple(lvec + mvec)
-                shell_set.add(new_vec)
+                new_vec = lvec + mvec
+                if np.sum(new_vec**2) < 10.0:
+                    shell_set.add(tuple(new_vec))
     neighbor_vecs = np.array(list(shell_set))
+    
+    rad_mask = np.sum(neighbor_vecs**2, axis=1) < 5.0
+    neighbor_vecs = neighbor_vecs[rad_mask].copy()
+    print("kept {} of {} vecs".format(len(neighbor_vecs), len(shell_set)))
     
     for neighbor_vec in neighbor_vecs:
         all_trans.append(short_pts + neighbor_vec)
@@ -115,7 +115,7 @@ def match(data1, data2, tolerance=0, cols=None):
     idxs_1 = []
     idxs_2 = []
     distances = []
-    dthresh = tolerance**2
+    dthresh = 1.0*tolerance**2
     for long_idx in range(len(long_pts)):
         ltup = tuple(long_pts[long_idx])
         possible_match_set = cdict.get(ltup)
@@ -140,7 +140,7 @@ def match(data1, data2, tolerance=0, cols=None):
     return idxs_1, idxs_2, distances
 
 
-def sparse_distance_matrix(data, data2=None, max_dist=1.0, rbf=None, cols=None,):
+def sparse_distance_matrix(data1, data2=None, max_dist=1.0, rbf=None, cols=None,):
     """matches the rows of input data against themselves and generates a
     sparse n_rows by n_rows matrix with entries at i, j if and only if 
     np.sum((data[i]-data[j])**2) < max_dist**2 
@@ -163,12 +163,12 @@ def sparse_distance_matrix(data, data2=None, max_dist=1.0, rbf=None, cols=None,)
     cols: see latbin.matching.match documentation for more info 
     """
     if data2 is None:
-        data2 = data
+        data2 = data1
     if rbf is None:
-        rbf = lambda x: np.exp(-x**2)
-    idxs_1, idxs_2, distances = match(data, data2, tolerance=max_dist, cols=cols)
+        rbf = lambda x: np.exp(-0.5*x**2)
+    idxs_1, idxs_2, distances = match(data1, data2, tolerance=max_dist, cols=cols)
     entries = rbf(distances)
-    n1 = len(data)
+    n1 = len(data1)
     n2 = len(data2)
     coomat = scipy.sparse.coo_matrix((entries, (idxs_1, idxs_2)), shape=(n1, n2))
     return coomat
