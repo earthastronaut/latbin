@@ -5,6 +5,7 @@ from collections import Iterable
 import re
 import io 
 import os
+from copy import copy
 
 # 3rd Party
 import numpy as np
@@ -263,7 +264,7 @@ class Lattice (object):
         
         return data_coords        
     
-    def minimal_vectors(self):
+    def minimal_vectors(self, lattice_space_radius=None):
         """return a complete list of minimal norm of the vectors
         with minimal non-zero norm in the lattice.
         """
@@ -313,7 +314,8 @@ class Lattice (object):
         
         """
         raise NotImplementedError("Lattice isn't meant to be used this way see the generate_lattice helper function")
-            
+
+
 class PointCloud (Lattice):
     """A representation of a finite set of points. While Technically not a 
     Lattice in the mathematical sense it implements the same API
@@ -555,7 +557,7 @@ class ALattice (Lattice):
     
     lattice_to_data_space.__doc__ = Lattice.lattice_to_data_space.__doc__
     
-    def minimal_vectors(self, space="lattice"):
+    def minimal_vectors(self):
         out_vecs = np.zeros((self.ndim*(self.ndim+1), self.ndim+1), dtype=int)
         out_idx = 0
         for i in range(self.ndim+1):
@@ -568,6 +570,37 @@ class ALattice (Lattice):
         return out_vecs
     
     minimal_vectors.__doc__ = Lattice.minimal_vectors.__doc__
+    
+    def neighborhood(
+            self, 
+            lattice_space_radius, 
+            include_origin=True,
+    ):
+        minimal_vecs = self.minimal_vectors()
+        shell_set = set([tuple(vec) for vec in minimal_vecs])
+        radius_reached = False
+        while not radius_reached:
+            last_set = copy(shell_set)
+            for lvec in last_set:
+                lvec = np.array(lvec)
+                for mvec in minimal_vecs:
+                    new_vec = lvec + mvec
+                    rad = np.sqrt(np.sum(new_vec**2))
+                    if rad >= lattice_space_radius:
+                        radius_reached = True
+                    if rad <= 2.0*lattice_space_radius:
+                        shell_set.add(tuple(new_vec))
+        zero_tup = tuple(np.zeros(self.ndim+1))
+        if include_origin:
+            shell_set.add(zero_tup)
+        else:
+            shell_set.remove(zero_tup)
+        neighbor_vecs = np.array(list(shell_set))
+        
+        dists_sq = np.sum(neighbor_vecs**2, axis=1)
+        rad_mask = dists_sq <= lattice_space_radius**2
+        neighbor_vecs = neighbor_vecs[rad_mask].copy()
+        return neighbor_vecs
     
     @property
     def norm(self):

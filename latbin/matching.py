@@ -66,7 +66,7 @@ def match(data1, data2, tolerance=0, cols=None):
     if tolerance <= 0:
         raise NotImplementedError()
     
-    qlat = ALattice(nmatch_cols, scale=tolerance)
+    qlat = ALattice(nmatch_cols, scale=1.3*tolerance)
     
     switched = False
     if len(data2) > len(data1):
@@ -81,21 +81,7 @@ def match(data1, data2, tolerance=0, cols=None):
     short_pts = qlat.quantize(d2vals)
     
     all_trans = [short_pts]
-    minimal_vecs = qlat.minimal_vectors()
-    shell_set = set([tuple(vec) for vec in minimal_vecs])
-    for expand_iter in range(max(0, nmatch_cols-2)):
-        last_set = copy(shell_set)
-        for lvec in last_set:
-            lvec = np.array(lvec)
-            for mvec in minimal_vecs:
-                new_vec = lvec + mvec
-                if np.sum(new_vec**2) < 10.0:
-                    shell_set.add(tuple(new_vec))
-    neighbor_vecs = np.array(list(shell_set))
-    
-    rad_mask = np.sum(neighbor_vecs**2, axis=1) < 5.0
-    neighbor_vecs = neighbor_vecs[rad_mask].copy()
-    print("kept {} of {} vecs".format(len(neighbor_vecs), len(shell_set)))
+    neighbor_vecs = qlat.neighborhood(lattice_space_radius=2.1, include_origin=False)
     
     for neighbor_vec in neighbor_vecs:
         all_trans.append(short_pts + neighbor_vec)
@@ -115,7 +101,7 @@ def match(data1, data2, tolerance=0, cols=None):
     idxs_1 = []
     idxs_2 = []
     distances = []
-    dthresh = 1.0*tolerance**2
+    dthresh = tolerance**2
     for long_idx in range(len(long_pts)):
         ltup = tuple(long_pts[long_idx])
         possible_match_set = cdict.get(ltup)
@@ -123,7 +109,7 @@ def match(data1, data2, tolerance=0, cols=None):
             #calculate actual distance
             for match_idx in possible_match_set:
                 dist = np.sum((d1vals[long_idx] - d2vals[match_idx])**2)
-                if dist < dthresh:
+                if dist <= dthresh:
                     idxs_1.append(long_idx)
                     idxs_2.append(match_idx)
                     distances.append(np.sqrt(dist))

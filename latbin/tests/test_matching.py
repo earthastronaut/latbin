@@ -18,8 +18,8 @@ class TestMatch(unittest.TestCase):
     match_dist = 0.025
     
     def setUp(self):
-        npts1 = 400
-        npts2 = 400
+        npts1 = 1000
+        npts2 = 1000
         self.d1 = np.random.random((npts1, self.ndim))
         self.d2 = np.random.random((npts2, self.ndim))
     
@@ -42,10 +42,13 @@ class TestMatch(unittest.TestCase):
         nmatches = len(brute_res[0])
         
         invalid = match_matches-brute_matches
-        self.assertTrue(invalid == set(), "found {} false matches".format(len(invalid)))
-        
         missed = brute_matches-match_matches
-        self.assertTrue(missed == set(), "missed {} out of {} valid matches".format(len(missed), nmatches))
+        print("missed", missed)
+        print("invalid", invalid)
+        
+        self.assertTrue(len(invalid)==0, "found {} false matches".format(len(invalid)))
+        
+        self.assertTrue(len(missed) == 0, "missed {} out of {} valid matches".format(len(missed), nmatches))
 
 class TestMatch3D(TestMatch):
     ndim = 3
