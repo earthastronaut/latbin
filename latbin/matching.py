@@ -23,6 +23,64 @@ def brute_match(data1, data2, tolerance=0):
                 distances.append(np.sqrt(dist))
     return idxs_1, idxs_2, distances
 
+class MatchingIndexer(object):
+    """Class for storing pre-calculated neighborhood dictionaries to make matching against the same data set many times quick.
+    """
+    
+    def __init__(self, x, tolerance):
+        self.x = x
+        self.tolerance=tolerance
+        
+        npts, ndim = self.x.shape        
+        
+        #generate the matching lattice cells
+        self.lat = ALattice(ndim, scale=self.tolerance*1.3)
+        self.neighborhood_vecs = self.lat.neighborhood(
+            lattice_space_radius=2.0, include_origin=True)
+        
+        xquant = self.lat.quantize(x)
+        self.matching_dict = {}
+        for shift_idx in range(len(self.neighborhood_vecs)):
+            shift_vec = self.neighborhood_vecs[shift_idx]
+            for xq_idx in range(npts):
+                xtup = tuple(xquant[xq_idx] + shift_vec) 
+                match_list = self.matching_dict.get(xtup, [])
+                match_list.append(xq_idx)
+                self.matching_dict[xtup] = match_list
+    
+    
+    def match(self, x, cleanup=True):
+        n_out = len(x)
+        potential_matches = []
+        xquant = self.lat.quantize(x)
+        for out_idx in range(n_out):
+            xtup = tuple(xquant[out_idx])
+            cp_matches = self.matching_dict.get(xtup, [])
+            for midx in cp_matches:
+                match_tup = (out_idx, midx)
+                potential_matches.append(match_tup)
+        tol_sq = self.tolerance**2
+        cleaned_matches = []
+        distances = []
+        for idx1, idx2 in potential_matches:
+            dist_sq = np.sum((x[idx1] - self.x[idx2])**2)
+            if dist_sq < tol_sq:
+                cleaned_matches.append((idx1, idx2))
+                distances.append(dist_sq)
+        return cleaned_matches, distances
+    
+    
+    def distance_matrix(self, x):
+        idxs, distances = self.match(x, cleanup=True)
+        idxs = np.asarray(idxs)
+        mat_shape = (len(x), len(self.x))
+        coomat = scipy.sparse.coo_matrix(
+            (distances, idxs.transpose()), 
+            shape=mat_shape
+        )
+        return coomat
+
+
 def match(data1, data2, tolerance=0, cols=None):
     """efficiently find all matching rows between two data sets
     
