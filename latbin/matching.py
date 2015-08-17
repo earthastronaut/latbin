@@ -23,6 +23,7 @@ def brute_match(data1, data2, tolerance=0):
                 distances.append(np.sqrt(dist))
     return idxs_1, idxs_2, distances
 
+
 class MatchingIndexer(object):
     """Class for storing pre-calculated neighborhood dictionaries to make matching against the same data set many times quick.
     """
@@ -67,6 +68,7 @@ class MatchingIndexer(object):
             if dist_sq < tol_sq:
                 cleaned_matches.append((idx1, idx2))
                 distances.append(dist_sq)
+        distances = np.sqrt(np.asarray(distances))
         return cleaned_matches, distances
     
     
