@@ -21,24 +21,35 @@ an A2 (aka honeycomb) lattice using latbin.
 ```python
 import latbin
 import numpy as np
+import pandas as pd
+import matplotlib.pylab as plt
 
 # create some fake data with shape (npts,ndim)
 npts,ndim = 60000,2
-data = np.random.normal(size=(npts, ndim))*4.0
+scale = 4.0
+data = pd.DataFrame(
+    {
+        "x1":scale*np.random.normal(size=(npts,)),
+        "x2":scale*np.random.normal(size=(npts,)),
+    }
+)
 
 # create an A2 lattice (honeycomb binning)
 a2 = latbin.ALattice(2)
 
-# histogram the data onto A2 Lattice
-h = a2.histogram(data)
+# bin the data onto the lattice
+# the binned data is simply a pandas groupby object
+binned_data = a2.bin(data)
 
-# get the lattice points in the data space
-centers = h.centers()
+#find the mean of the data in each bin
+centers = binned_data.mean()
+
+#find the number of data points in each bin
+counts = binned_data.size()
 
 # show the result
-import matplotlib.pylab as plt
 plt.title("Honeycomb binning (A2 Lattice)")
-plt.scatter(centers[:,0],centers[:,1],c=h.values(), s=70)
+plt.scatter(centers["x1"],centers["x2"], c=counts, s=70)
 plt.show()
 ```
 
